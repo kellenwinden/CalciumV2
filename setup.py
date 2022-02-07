@@ -3,8 +3,8 @@
 from setuptools import setup
 
 setup(
-    
-    package_data = {
-    'napari_calciumv2': ['*.json'],
+
+    package_data={
+        'napari_calciumv2': ['*.json', '*.hdf5'],
     }
 )
