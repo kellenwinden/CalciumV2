@@ -79,7 +79,9 @@ class calcium(QWidget):
         self.img_namename = self.viewer.layers[0].name
         self.img_path = self.viewer.layers[0].source.path
 
-        path = '/Users/kellenwinden/Data/calcium_imaging/train_segment/unet_calcium_1024.hdf5'
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        path = os.path.join(dir_path, 'unet_calcium_1024.hdf5')
+
         self.model_unet = load_model(path, custom_objects={"K": K})
         background_layer = 0
         minsize = 100
