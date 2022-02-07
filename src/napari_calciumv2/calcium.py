@@ -230,6 +230,10 @@ class calcium(QWidget):
         with open(save_path + '/spike_times.json', 'w') as outfile:
             json.dump(self.spike_times, outfile, indent="")
 
+        self.canvas_traces.print_png(save_path + '/traces.png')
+
+        # self.label_layer.save(save_path + '/ROIs.png')
+
     def clear(self):
         i = len(self.viewer.layers) - 1
         while i >= 0:
