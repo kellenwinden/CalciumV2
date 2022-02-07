@@ -1,0 +1,10 @@
+name: napari-calciumv2
+contributions:
+  commands:
+    - id: napari-calciumv2.analyze
+      title: Calcium Analysis
+      python_name: napari_calciumv2:_on_click
+  widgets:
+    - command: napari-calciumv2.analyze  # note, same as command.id above
+      display_name: Calcium Analysis
+      autogenerate: true
