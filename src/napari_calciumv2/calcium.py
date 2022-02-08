@@ -120,6 +120,7 @@ class calcium(QWidget):
                 roi_dict[labels[x,y]].append([x,y])
 
         del roi_dict[background_label]
+
         return roi_dict
 
     def calculate_ROI_intensity(self, roi_dict, img_stack):
@@ -227,12 +228,21 @@ class calcium(QWidget):
             for i in range(dff_signal.shape[0]):
                 writer.writerow(dff_signal[i,:])
 
-        with open(save_path + '/spike_times.json', 'w') as outfile:
-            json.dump(self.spike_times, outfile, indent="")
+        with open(save_path + '/spike_times.json', 'w') as spike_file:
+            json.dump(self.spike_times, spike_file, indent="")
 
         self.canvas_traces.print_png(save_path + '/traces.png')
 
         # self.label_layer.save(save_path + '/ROIs.png')
+
+        roi_centers = {}
+        for roi_number, roi_coords in self.roi_dict.items():
+            print(roi_number, roi_coords)
+            center = np.mean(roi_coords, axis=0)
+            roi_centers[roi_number] = center.astype(int).tolist()
+            print(roi_centers[roi_number], type(roi_centers[roi_number]))
+        with open(save_path + '/roi_centers.json', 'w') as roi_file:
+            json.dump(roi_centers, roi_file, indent="")
 
     def clear(self):
         i = len(self.viewer.layers) - 1
