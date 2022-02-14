@@ -72,6 +72,7 @@ class calcium(QWidget):
         self.roi_dff = None
         self.spike_times = None
         self.img_path = None
+        self.colors = []
 
     def _on_click(self):
         # added self.filename and added self. for most of the variables
@@ -153,12 +154,11 @@ class calcium(QWidget):
 
     def plot_values(self, dff, labels, layer, spike_times):  ### added labels parameter
         ### added this section:
-        colors = []
         for i in range(1, np.max(labels) + 1):
             color = layer.get_color(i)
             color = (color[0], color[1], color[2], color[3])
-            colors.append(color)
-        self.axes.set_prop_cycle(color=colors)
+            self.colors.append(color)
+        self.axes.set_prop_cycle(color=self.colors)
         ###
 
         dff_max = np.zeros(len(dff))
@@ -233,9 +233,21 @@ class calcium(QWidget):
 
         self.canvas_traces.print_png(save_path + '/traces.png')
 
+        label_array = np.stack((self.label_layer.data,)*4, axis=-1).astype(float)
+        print(f'colors\n{self.colors}')
+        for i in range(1, np.max(self.labels) + 1):
+            i_coords = np.asarray(label_array == [i, i, i, i]).nonzero()
+            label_array[(i_coords[0], i_coords[1])] = self.colors[i - 1]
+        # zero_coords = np.asarray(label_array == [0, 0, 0, 0]).nonzero()
+        # label_array[(zero_coords[0], zero_coords[1])] = [0, 0, 0, 1]
+        roi_layer = self.viewer.add_image(label_array, name='roi_image', visible=False)
+        roi_layer.save(save_path + '/ROIs.png')
+
+        """
         non_zero_coords = self.label_layer.data.nonzero()
         self.label_layer.data[non_zero_coords] = 1
         self.label_layer.save(save_path + '/ROIs.png')
+        """
 
         roi_centers = {}
         for roi_number, roi_coords in self.roi_dict.items():
@@ -260,6 +272,7 @@ class calcium(QWidget):
         self.roi_dff = None
         self.spike_times = None
         self.img_path = None
+        self.colors = []
 
         self.axes.cla()
         self.canvas_traces.draw_idle()
