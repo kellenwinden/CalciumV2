@@ -233,12 +233,17 @@ class calcium(QWidget):
 
         self.canvas_traces.print_png(save_path + '/traces.png')
 
-        # self.label_layer.save(save_path + '/ROIs.png')
+        non_zero_coords = self.label_layer.data.nonzero()
+        self.label_layer.data[non_zero_coords] = 1
+        self.label_layer.save(save_path + '/ROIs.png')
 
         roi_centers = {}
         for roi_number, roi_coords in self.roi_dict.items():
             center = np.mean(roi_coords, axis=0)
-            roi_centers[roi_number] = tuple(center.astype(int))
+            roi_centers[roi_number] = (int(center[0]), int(center[1]))
+
+        for x, y in roi_centers.values():
+            print(x, y, type(x), type(y))
 
         with open(save_path + '/roi_centers.json', 'w') as roi_file:
             json.dump(roi_centers, roi_file, indent="")
