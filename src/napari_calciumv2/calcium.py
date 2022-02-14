@@ -242,9 +242,6 @@ class calcium(QWidget):
             center = np.mean(roi_coords, axis=0)
             roi_centers[roi_number] = (int(center[0]), int(center[1]))
 
-        for x, y in roi_centers.values():
-            print(x, y, type(x), type(y))
-
         with open(save_path + '/roi_centers.json', 'w') as roi_file:
             json.dump(roi_centers, roi_file, indent="")
 
