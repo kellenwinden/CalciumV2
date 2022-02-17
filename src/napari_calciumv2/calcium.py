@@ -234,7 +234,6 @@ class calcium(QWidget):
         self.canvas_traces.print_png(save_path + '/traces.png')
 
         label_array = np.stack((self.label_layer.data,)*4, axis=-1).astype(float)
-        print(f'colors\n{self.colors}')
         for i in range(1, np.max(self.labels) + 1):
             i_coords = np.asarray(label_array == [i, i, i, i]).nonzero()
             label_array[(i_coords[0], i_coords[1])] = self.colors[i - 1]
