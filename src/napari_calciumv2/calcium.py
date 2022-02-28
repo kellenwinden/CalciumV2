@@ -77,11 +77,12 @@ class calcium(QWidget):
     def _on_click(self):
         # added self.filename and added self. for most of the variables
         self.img_stack = self.viewer.layers[0].data
-        self.img_namename = self.viewer.layers[0].name
+        self.img_name = self.viewer.layers[0].name
         self.img_path = self.viewer.layers[0].source.path
+        img_size = self.img_stack.shape[1]
 
         dir_path = os.path.dirname(os.path.realpath(__file__))
-        path = os.path.join(dir_path, 'unet_calcium_1024.hdf5')
+        path = os.path.join(dir_path, f'unet_calcium_{img_size}.hdf5')
 
         self.model_unet = load_model(path, custom_objects={"K": K})
         background_layer = 0
@@ -91,7 +92,7 @@ class calcium(QWidget):
         self.roi_signal = self.calculate_ROI_intensity(self.roi_dict, self.img_stack)
         self.roi_dff = self.calculateDFF(self.roi_signal)
 
-        spike_templates_file = "spikes.json"
+        spike_templates_file = 'spikes.json'
         self.spike_times = self.find_peaks(self.roi_dff, spike_templates_file, 0.85)
 
         self.plot_values(self.roi_dff, self.labels, self.label_layer, self.spike_times)
