@@ -100,6 +100,7 @@ class calcium(QWidget):
     def segment(self, img_stack, minsize, background_label):
         img_norm = np.max(img_stack,axis=0)/np.max(img_stack)
         img_predict = self.model_unet.predict(img_norm[np.newaxis,:,:])[0,:,:]
+        self.viewer.add_image(img_predict, name='Prediction')
         th = filters.threshold_otsu(img_predict)
         img_predict_th = img_predict > th
         img_predict_filtered_th = morphology.remove_small_objects(img_predict_th, min_size=minsize)
