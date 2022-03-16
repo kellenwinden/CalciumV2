@@ -67,6 +67,7 @@ class calcium(QWidget):
         self.img_name = None
         self.labels = None
         self.label_layer = None
+        self.prediction_layer = None
         self.roi_dict = None
         self.roi_signal = None
         self.roi_dff = None
@@ -100,7 +101,7 @@ class calcium(QWidget):
     def segment(self, img_stack, minsize, background_label):
         img_norm = np.max(img_stack,axis=0)/np.max(img_stack)
         img_predict = self.model_unet.predict(img_norm[np.newaxis,:,:])[0,:,:]
-        self.viewer.add_image(img_predict, name='Prediction')
+        self.prediction_layer = self.viewer.add_image(img_predict, name='Prediction')
         th = filters.threshold_otsu(img_predict)
         img_predict_th = img_predict > th
         img_predict_filtered_th = morphology.remove_small_objects(img_predict_th, min_size=minsize)
@@ -258,6 +259,8 @@ class calcium(QWidget):
         with open(save_path + '/roi_centers.json', 'w') as roi_file:
             json.dump(roi_centers, roi_file, indent="")
 
+        self.prediction_layer.save(save_path + '/prediction.tif')
+
     def clear(self):
         i = len(self.viewer.layers) - 1
         while i >= 0:
@@ -268,6 +271,7 @@ class calcium(QWidget):
         self.img_name = None
         self.labels = None
         self.label_layer = None
+        self.prediction_layer = None
         self.roi_dict = None
         self.roi_signal = None
         self.roi_dff = None
