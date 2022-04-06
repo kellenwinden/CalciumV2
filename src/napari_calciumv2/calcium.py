@@ -14,7 +14,7 @@ from qtpy.QtWidgets import QWidget, QVBoxLayout, QPushButton, QFileDialog
 
 import numpy as np
 from scipy import ndimage as ndi
-from skimage import filters, segmentation, morphology
+from skimage import filters, segmentation, morphology, transform
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt5agg import FigureCanvas
 import json
@@ -80,12 +80,7 @@ class calcium(QWidget):
         self.img_stack = self.viewer.layers[0].data
         self.img_name = self.viewer.layers[0].name
         self.img_path = self.viewer.layers[0].source.path
-        img_size = self.img_stack.shape[1]
 
-        dir_path = os.path.dirname(os.path.realpath(__file__))
-        path = os.path.join(dir_path, f'unet_calcium_{img_size}.hdf5')
-
-        self.model_unet = load_model(path, custom_objects={"K": K})
         background_layer = 0
         minsize = 100
         self.labels, self.label_layer, self.roi_dict = self.segment(self.img_stack, minsize, background_layer) ### added label_layer variable
@@ -98,21 +93,28 @@ class calcium(QWidget):
 
         self.plot_values(self.roi_dff, self.labels, self.label_layer, self.spike_times)
 
-        print('ROI areas:', self.get_ROI_area(self.roi_dict))
-        print('ROI average prediction:', self.get_ROI_prediction(self.roi_dict, self.prediction_layer.data))
-
     def segment(self, img_stack, minsize, background_label):
-        img_norm = np.max(img_stack,axis=0)/np.max(img_stack)
-        img_predict = self.model_unet.predict(img_norm[np.newaxis,:,:])[0,:,:]
+        img_flat = np.max(img_stack, axis=0)
+        self.viewer.add_image(img_flat, name='Flattened')
+        img_expanded = transform.rescale(img_flat, 2)
+        img_norm = img_expanded/np.max(img_expanded)
+
+        img_size = img_norm.shape[0]
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        path = os.path.join(dir_path, f'unet_calcium_{img_size}.hdf5')
+        model_unet = load_model(path, custom_objects={"K": K})
+        img_predict = model_unet.predict(img_norm[np.newaxis,:,:])[0,:,:]
+        img_predict = transform.rescale(img_predict, 0.5)
         self.prediction_layer = self.viewer.add_image(img_predict, name='Prediction')
+
         th = filters.threshold_otsu(img_predict)
         img_predict_th = img_predict > th
         img_predict_filtered_th = morphology.remove_small_objects(img_predict_th, min_size=minsize)
         distance = ndi.distance_transform_edt(img_predict_filtered_th)
-        distance_smooth = filters.gaussian(distance, sigma=10)
+        distance_smooth = filters.gaussian(distance, sigma=5)
         labels = segmentation.watershed(-distance_smooth, mask=img_predict_th)
         roi_dict = self.getROIpos(labels, background_label)
-        label_layer = self.viewer.add_labels(labels, name='Segmentation', opacity=1)
+        label_layer = self.viewer.add_labels(labels, name='Segmentation', opacity=1, num_colors=150)
 
         return labels, label_layer, roi_dict ### added label_layer as return value
 
@@ -129,19 +131,6 @@ class calcium(QWidget):
         del roi_dict[background_label]
 
         return roi_dict
-
-    def get_ROI_area(self, roi_dict):
-        area = {}
-        for r in roi_dict:
-            area[r] = len(roi_dict[r])
-        return area
-
-    def get_ROI_prediction(self, roi_dict, prediction):
-        avg_pred = {}
-        for r in roi_dict:
-            roi_coords = np.array(roi_dict[r]).T.tolist()
-            avg_pred[r] = np.mean(prediction[tuple(roi_coords)])
-        return avg_pred
 
     def calculate_ROI_intensity(self, roi_dict, img_stack):
         f = {}
