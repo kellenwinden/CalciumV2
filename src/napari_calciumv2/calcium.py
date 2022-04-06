@@ -98,6 +98,9 @@ class calcium(QWidget):
 
         self.plot_values(self.roi_dff, self.labels, self.label_layer, self.spike_times)
 
+        print('ROI areas:', self.get_ROI_area(self.roi_dict))
+        print('ROI average prediction:', self.get_ROI_prediction(self.roi_dict, self.prediction_layer.data))
+
     def segment(self, img_stack, minsize, background_label):
         img_norm = np.max(img_stack,axis=0)/np.max(img_stack)
         img_predict = self.model_unet.predict(img_norm[np.newaxis,:,:])[0,:,:]
@@ -126,6 +129,19 @@ class calcium(QWidget):
         del roi_dict[background_label]
 
         return roi_dict
+
+    def get_ROI_area(self, roi_dict):
+        area = {}
+        for r in roi_dict:
+            area[r] = len(roi_dict[r])
+        return area
+
+    def get_ROI_prediction(self, roi_dict, prediction):
+        avg_pred = {}
+        for r in roi_dict:
+            roi_coords = np.array(roi_dict[r]).T.tolist()
+            avg_pred[r] = np.mean(prediction[tuple(roi_coords)])
+        return avg_pred
 
     def calculate_ROI_intensity(self, roi_dict, img_stack):
         f = {}
