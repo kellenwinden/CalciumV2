@@ -14,7 +14,7 @@ from qtpy.QtWidgets import QWidget, QVBoxLayout, QPushButton, QFileDialog
 
 import numpy as np
 from scipy import ndimage as ndi
-from skimage import filters, segmentation, morphology
+from skimage import filters, segmentation, morphology, feature
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt5agg import FigureCanvas
 import json
@@ -109,8 +109,13 @@ class calcium(QWidget):
         img_predict_th = img_predict > th
         img_predict_filtered_th = morphology.remove_small_objects(img_predict_th, min_size=minsize)
         distance = ndi.distance_transform_edt(img_predict_filtered_th)
-        distance_smooth = filters.gaussian(distance, sigma=10)
-        labels = segmentation.watershed(-distance_smooth, mask=img_predict_th)
+        local_max = feature.peak_local_max(distance,
+                                           min_distance=10,
+                                           indices=False,
+                                           footprint=np.ones((10, 10)),
+                                           labels=img_predict_filtered_th)
+        markers = morphology.label(local_max)
+        labels = segmentation.watershed(-distance, markers, mask=img_predict_filtered_th)
         roi_dict = self.getROIpos(labels, background_label)
         label_layer = self.viewer.add_labels(labels, name='Segmentation', opacity=1)
 
