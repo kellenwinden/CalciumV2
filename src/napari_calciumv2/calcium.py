@@ -90,34 +90,44 @@ class calcium(QWidget):
         minsize = 100
         self.labels, self.label_layer, self.roi_dict = self.segment(self.img_stack, minsize, background_layer) ### added label_layer variable
 
-        self.roi_signal = self.calculate_ROI_intensity(self.roi_dict, self.img_stack)
-        self.roi_dff = self.calculateDFF(self.roi_signal)
+        if self.label_layer:
+            self.roi_signal = self.calculate_ROI_intensity(self.roi_dict, self.img_stack)
+            self.roi_dff = self.calculateDFF(self.roi_signal)
 
-        spike_templates_file = 'spikes.json'
-        self.spike_times = self.find_peaks(self.roi_dff, spike_templates_file, 0.85)
+            spike_templates_file = 'spikes.json'
+            self.spike_times = self.find_peaks(self.roi_dff, spike_templates_file, 0.85)
 
-        self.plot_values(self.roi_dff, self.labels, self.label_layer, self.spike_times)
+            self.plot_values(self.roi_dff, self.labels, self.label_layer, self.spike_times)
 
-        print('ROI areas:', self.get_ROI_area(self.roi_dict))
-        print('ROI average prediction:', self.get_ROI_prediction(self.roi_dict, self.prediction_layer.data))
+            print('ROI areas:', self.get_ROI_area(self.roi_dict))
+            print('ROI average prediction:', self.get_ROI_prediction(self.roi_dict, self.prediction_layer.data))
 
     def segment(self, img_stack, minsize, background_label):
         img_norm = np.max(img_stack,axis=0)/np.max(img_stack)
         img_predict = self.model_unet.predict(img_norm[np.newaxis,:,:])[0,:,:]
-        self.prediction_layer = self.viewer.add_image(img_predict, name='Prediction')
-        th = filters.threshold_otsu(img_predict)
-        img_predict_th = img_predict > th
-        img_predict_filtered_th = morphology.remove_small_objects(img_predict_th, min_size=minsize)
-        distance = ndi.distance_transform_edt(img_predict_filtered_th)
-        local_max = feature.peak_local_max(distance,
-                                           min_distance=10,
-                                           indices=False,
-                                           footprint=np.ones((10, 10)),
-                                           labels=img_predict_filtered_th)
-        markers = morphology.label(local_max)
-        labels = segmentation.watershed(-distance, markers, mask=img_predict_filtered_th)
-        roi_dict = self.getROIpos(labels, background_label)
-        label_layer = self.viewer.add_labels(labels, name='Segmentation', opacity=1)
+
+        if np.max(img_predict) > 0.1:
+            self.prediction_layer = self.viewer.add_image(img_predict, name='Prediction')
+            th = filters.threshold_otsu(img_predict)
+            img_predict_th = img_predict > th
+            img_predict_filtered_th = morphology.remove_small_objects(img_predict_th, min_size=minsize)
+            self.viewer.add_image(img_predict_filtered_th, name='Otsu')
+            distance = ndi.distance_transform_edt(img_predict_filtered_th)
+            self.viewer.add_image(distance, name='Distance')
+            local_max = feature.peak_local_max(distance,
+                                               min_distance=10,
+                                               footprint=np.ones((10, 10)),
+                                               labels=img_predict_filtered_th)
+            local_max_mask = np.zeros_like(img_predict_filtered_th, dtype=bool)
+            local_max_mask[tuple(local_max.T)] = True
+            self.viewer.add_image(local_max_mask, name='Local Max')
+            markers = morphology.label(local_max_mask)
+            labels = segmentation.watershed(-distance, markers, mask=img_predict_filtered_th)
+            roi_dict = self.getROIpos(labels, background_label)
+            label_layer = self.viewer.add_labels(labels, name='Segmentation', opacity=1)
+        else:
+            print('No ROIs detected')
+            labels, label_layer, roi_dict = None, None, None
 
         return labels, label_layer, roi_dict ### added label_layer as return value
 
