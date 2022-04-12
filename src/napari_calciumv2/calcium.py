@@ -106,7 +106,7 @@ class calcium(QWidget):
         img_norm = np.max(img_stack,axis=0)/np.max(img_stack)
         img_predict = self.model_unet.predict(img_norm[np.newaxis,:,:])[0,:,:]
 
-        if np.max(img_predict) > 0.1:
+        if np.max(img_predict) > 0.3:
             self.prediction_layer = self.viewer.add_image(img_predict, name='Prediction')
             th = filters.threshold_otsu(img_predict)
             img_predict_th = img_predict > th
