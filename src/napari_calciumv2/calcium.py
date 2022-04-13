@@ -110,13 +110,16 @@ class calcium(QWidget):
             self.prediction_layer = self.viewer.add_image(img_predict, name='Prediction')
             th = filters.threshold_otsu(img_predict)
             img_predict_th = img_predict > th
-            img_predict_filtered_th = morphology.remove_small_objects(img_predict_th, min_size=minsize)
-            self.viewer.add_image(img_predict_filtered_th, name='Otsu')
+            self.viewer.add_image(img_predict_th, name='Otsu Base')
+            img_predict_remove_holes_th = morphology.remove_small_holes(img_predict_th, area_threshold=minsize * 0.3)
+            self.viewer.add_image(img_predict_remove_holes_th, name='Otsu Holes Removed')
+            img_predict_filtered_th = morphology.remove_small_objects(img_predict_remove_holes_th, min_size=minsize)
+            self.viewer.add_image(img_predict_filtered_th, name='Otsu Objects Removed')
             distance = ndi.distance_transform_edt(img_predict_filtered_th)
             self.viewer.add_image(distance, name='Distance')
             local_max = feature.peak_local_max(distance,
                                                min_distance=10,
-                                               footprint=np.ones((10, 10)),
+                                               footprint=np.ones((15, 15)),
                                                labels=img_predict_filtered_th)
             local_max_mask = np.zeros_like(img_predict_filtered_th, dtype=bool)
             local_max_mask[tuple(local_max.T)] = True
