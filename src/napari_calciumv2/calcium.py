@@ -23,7 +23,6 @@ import tensorflow.keras.backend as K
 import os
 import csv
 
-###
 """
 - Moved spike.json into napari_calciumv2 directory (next to __init__.py)
 - Added:
@@ -62,7 +61,6 @@ class calcium(QWidget):
         self.clear_btn.clicked.connect(self.clear)
         self.layout().addWidget(self.clear_btn)
 
-        ### changed to set variables in __init__
         self.img_stack = None
         self.img_name = None
         self.labels = None
@@ -76,7 +74,6 @@ class calcium(QWidget):
         self.colors = []
 
     def _on_click(self):
-        # added self.filename and added self. for most of the variables
         self.img_stack = self.viewer.layers[0].data
         self.img_name = self.viewer.layers[0].name
         self.img_path = self.viewer.layers[0].source.path
@@ -88,7 +85,7 @@ class calcium(QWidget):
         self.model_unet = load_model(path, custom_objects={"K": K})
         background_layer = 0
         minsize = 100
-        self.labels, self.label_layer, self.roi_dict = self.segment(self.img_stack, minsize, background_layer) ### added label_layer variable
+        self.labels, self.label_layer, self.roi_dict = self.segment(self.img_stack, minsize, background_layer)
 
         if self.label_layer:
             self.roi_signal = self.calculate_ROI_intensity(self.roi_dict, self.img_stack)
@@ -132,7 +129,7 @@ class calcium(QWidget):
             print('No ROIs detected')
             labels, label_layer, roi_dict = None, None, None
 
-        return labels, label_layer, roi_dict ### added label_layer as return value
+        return labels, label_layer, roi_dict
 
     def getROIpos(self, labels, background_label):
         u_labels = np.unique(labels)
@@ -189,14 +186,12 @@ class calcium(QWidget):
             background[y] = np.mean(f[x:y][lower_quantile])
         return background
 
-    def plot_values(self, dff, labels, layer, spike_times):  ### added labels parameter
-        ### added this section:
+    def plot_values(self, dff, labels, layer, spike_times):
         for i in range(1, np.max(labels) + 1):
             color = layer.get_color(i)
             color = (color[0], color[1], color[2], color[3])
             self.colors.append(color)
         self.axes.set_prop_cycle(color=self.colors)
-        ###
 
         dff_max = np.zeros(len(dff))
         for dff_index, dff_key in enumerate(dff):
@@ -211,10 +206,8 @@ class calcium(QWidget):
             self.canvas_traces.draw_idle()
 
     def find_peaks(self, roi_dff, template_file, spk_threshold):
-        # f = open(template_file) ### replaced this line with the following:
         f = importlib.resources.open_text(__package__, template_file)
         spike_templates = json.load(f)
-        f.close() ### type(f) is now <class '_io.TextIOWrapper'>, it's a typing.TextIO instance. Do you need to close it?
 
         spike_times = {}
         for r in roi_dff:
@@ -274,16 +267,8 @@ class calcium(QWidget):
         for i in range(1, np.max(self.labels) + 1):
             i_coords = np.asarray(label_array == [i, i, i, i]).nonzero()
             label_array[(i_coords[0], i_coords[1])] = self.colors[i - 1]
-        # zero_coords = np.asarray(label_array == [0, 0, 0, 0]).nonzero()
-        # label_array[(zero_coords[0], zero_coords[1])] = [0, 0, 0, 1]
         roi_layer = self.viewer.add_image(label_array, name='roi_image', visible=False)
         roi_layer.save(save_path + '/ROIs.png')
-
-        """
-        non_zero_coords = self.label_layer.data.nonzero()
-        self.label_layer.data[non_zero_coords] = 1
-        self.label_layer.save(save_path + '/ROIs.png')
-        """
 
         roi_centers = {}
         for roi_number, roi_coords in self.roi_dict.items():
