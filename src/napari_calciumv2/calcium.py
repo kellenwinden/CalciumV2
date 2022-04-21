@@ -96,7 +96,6 @@ class calcium(QWidget):
 
             self.plot_values(self.roi_dff, self.labels, self.label_layer, self.spike_times)
 
-            print('ROI areas:', self.get_ROI_area(self.roi_dict))
             print('ROI average prediction:', self.get_ROI_prediction(self.roi_dict, self.prediction_layer.data))
 
     def segment(self, img_stack, minsize, background_label):
@@ -123,7 +122,8 @@ class calcium(QWidget):
             self.viewer.add_image(local_max_mask, name='Local Max')
             markers = morphology.label(local_max_mask)
             labels = segmentation.watershed(-distance, markers, mask=img_predict_filtered_th)
-            roi_dict = self.getROIpos(labels, background_label)
+            self.viewer.add_labels(labels, name='Before removal', opacity=1)
+            roi_dict, labels = self.getROIpos(labels, background_label)
             label_layer = self.viewer.add_labels(labels, name='Segmentation', opacity=1)
         else:
             print('No ROIs detected')
@@ -143,13 +143,43 @@ class calcium(QWidget):
 
         del roi_dict[background_label]
 
-        return roi_dict
+        print("roi_dict len:", len(roi_dict))
+        area_dict, roi_to_delete = self.get_ROI_area(roi_dict, 100)
+        print("area_dict:", area_dict)
 
-    def get_ROI_area(self, roi_dict):
+        # delete roi in label layer and dict
+        for r in roi_to_delete:
+            coords_to_delete = np.array(roi_dict[r]).T.tolist()
+            labels[tuple(coords_to_delete)] = 0
+            roi_dict[r] = []
+
+        # move roi in roi_dict
+        for r in range(1, (len(roi_dict) - len(roi_to_delete) + 1)):
+            i = 1
+            while not roi_dict[r]:
+                roi_dict[r] = roi_dict[r + i]
+                roi_dict[r + i] = []
+                i += 1
+
+        # delete extra roi keys
+        for r in range((len(roi_dict) - len(roi_to_delete) + 1), (len(roi_dict) + 1)):
+            del roi_dict[r]
+
+        # update label layer with new roi
+        for r in roi_dict:
+            roi_coords = np.array(roi_dict[r]).T.tolist()
+            labels[tuple(roi_coords)] = r
+        print("new roi_dict len:", len(roi_dict))
+        return roi_dict, labels
+
+    def get_ROI_area(self, roi_dict, threshold):
         area = {}
+        small_roi = []
         for r in roi_dict:
             area[r] = len(roi_dict[r])
-        return area
+            if area[r] < threshold:
+                small_roi.append(r)
+        return area, small_roi
 
     def get_ROI_prediction(self, roi_dict, prediction):
         avg_pred = {}
@@ -219,6 +249,7 @@ class calcium(QWidget):
 
             spike_times[r] = []
             spike_correlations = np.max(m,axis=1)
+
             j = 0
             while j < len(spike_correlations):
                 if spike_correlations[j] > spk_threshold:
