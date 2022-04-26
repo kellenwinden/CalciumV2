@@ -70,6 +70,8 @@ class calcium(QWidget):
         self.roi_signal = None
         self.roi_dff = None
         self.spike_times = None
+        self.max_correlations = None
+        self.max_cor_templates = None
         self.img_path = None
         self.colors = []
 
@@ -238,17 +240,23 @@ class calcium(QWidget):
     def find_peaks(self, roi_dff, template_file, spk_threshold):
         f = importlib.resources.open_text(__package__, template_file)
         spike_templates = json.load(f)
-
         spike_times = {}
+        self.max_correlations = {}
+        self.max_cor_templates = {}
+
+        max_temp_len = max([len(temp) for temp in spike_templates.values()])
         for r in roi_dff:
             m = np.zeros((len(roi_dff[r]),len(spike_templates)))
+            roi_dff_pad = np.pad(roi_dff[r], (0, (max_temp_len - 1)), mode='constant')
             for spike_template_index, spk_temp in enumerate(spike_templates):
-                for i in range((len(roi_dff[r])-len(spike_templates[spk_temp])+1)):
-                    p = np.corrcoef(roi_dff[r][i:(i+len(spike_templates[spk_temp]))],spike_templates[spk_temp])
+                for i in range(len(roi_dff[r])):
+                    p = np.corrcoef(roi_dff_pad[i:(i+len(spike_templates[spk_temp]))], spike_templates[spk_temp])
                     m[i, spike_template_index] = p[0,1]
 
             spike_times[r] = []
-            spike_correlations = np.max(m,axis=1)
+            spike_correlations = np.max(m, axis=1)
+            self.max_correlations[r] = spike_correlations
+            self.max_cor_templates[r] = np.argmax(m, axis=1) + 1
 
             j = 0
             while j < len(spike_correlations):
@@ -292,6 +300,28 @@ class calcium(QWidget):
         with open(save_path + '/spike_times.json', 'w') as spike_file:
             json.dump(self.spike_times, spike_file, indent="")
 
+        max_cor = np.zeros([len(self.max_correlations[list(self.max_correlations.keys())[0]]),
+                            len(self.max_correlations)])
+        for i, r in enumerate(self.max_correlations):
+            max_cor[:, i] = self.max_correlations[r]
+
+        with open(save_path + '/max_correlations.csv', 'w') as cor_file:
+            writer = csv.writer(cor_file)
+            writer.writerow(self.max_correlations.keys())
+            for i in range(max_cor.shape[0]):
+                writer.writerow(max_cor[i, :])
+
+        max_cor_temps = np.zeros([len(self.max_cor_templates[list(self.max_cor_templates.keys())[0]]),
+                                  len(self.max_cor_templates)])
+        for i, r in enumerate(self.max_cor_templates):
+            max_cor_temps[:, i] = self.max_cor_templates[r]
+
+        with open(save_path + '/max_cor_templates.csv', 'w') as cor_temp_file:
+            writer = csv.writer(cor_temp_file)
+            writer.writerow(self.max_cor_templates.keys())
+            for i in range(max_cor_temps.shape[0]):
+                writer.writerow(max_cor_temps[i, :])
+
         self.canvas_traces.print_png(save_path + '/traces.png')
 
         label_array = np.stack((self.label_layer.data,)*4, axis=-1).astype(float)
@@ -326,6 +356,8 @@ class calcium(QWidget):
         self.roi_signal = None
         self.roi_dff = None
         self.spike_times = None
+        self.max_correlations = None
+        self.max_cor_templates = None
         self.img_path = None
         self.colors = []
 
