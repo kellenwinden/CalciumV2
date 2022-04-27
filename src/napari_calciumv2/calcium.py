@@ -14,6 +14,7 @@ from qtpy.QtWidgets import QWidget, QVBoxLayout, QPushButton, QFileDialog
 
 import numpy as np
 from scipy import ndimage as ndi
+from scipy.stats import spearmanr
 from skimage import filters, segmentation, morphology, feature
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt5agg import FigureCanvas
@@ -250,8 +251,8 @@ class calcium(QWidget):
             roi_dff_pad = np.pad(roi_dff[r], (0, (max_temp_len - 1)), mode='constant')
             for spike_template_index, spk_temp in enumerate(spike_templates):
                 for i in range(len(roi_dff[r])):
-                    p = np.corrcoef(roi_dff_pad[i:(i+len(spike_templates[spk_temp]))], spike_templates[spk_temp])
-                    m[i, spike_template_index] = p[0,1]
+                    rho, pval = spearmanr(roi_dff_pad[i:(i+len(spike_templates[spk_temp]))], spike_templates[spk_temp])
+                    m[i, spike_template_index] = rho
 
             spike_times[r] = []
             spike_correlations = np.max(m, axis=1)
