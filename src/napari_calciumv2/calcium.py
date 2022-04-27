@@ -94,7 +94,7 @@ class calcium(QWidget):
             self.roi_dff = self.calculateDFF(self.roi_signal)
 
             spike_templates_file = 'spikes.json'
-            self.spike_times = self.find_peaks(self.roi_dff, spike_templates_file, 0.85)
+            self.spike_times = self.find_peaks(self.roi_dff, spike_templates_file, 0.85, 0.80)
 
             self.plot_values(self.roi_dff, self.labels, self.label_layer, self.spike_times)
 
@@ -237,7 +237,7 @@ class calcium(QWidget):
                                ms=2, color='k', marker='o', ls='')
             self.canvas_traces.draw_idle()
 
-    def find_peaks(self, roi_dff, template_file, spk_threshold):
+    def find_peaks(self, roi_dff, template_file, spk_threshold, reset_threshold):
         f = importlib.resources.open_text(__package__, template_file)
         spike_templates = json.load(f)
         spike_times = {}
@@ -262,7 +262,7 @@ class calcium(QWidget):
             while j < len(spike_correlations):
                 if spike_correlations[j] > spk_threshold:
                     s_max = j
-                    while spike_correlations[j+1] > spk_threshold:
+                    while spike_correlations[j + 1] > reset_threshold:
                         if spike_correlations[j + 1] > spike_correlations[s_max]:
                             s_max = j + 1
                         j += 1
