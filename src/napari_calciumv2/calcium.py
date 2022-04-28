@@ -23,6 +23,10 @@ from tensorflow.keras.models import load_model
 import tensorflow.keras.backend as K
 import os
 import csv
+import pandas as pd
+from .WeightedCorr import WeightedCorr
+
+
 
 """
 - Moved spike.json into napari_calciumv2 directory (next to __init__.py)
@@ -32,6 +36,8 @@ package_data = {
     }
   as an argument for setup() function in the setup.py file
 """
+
+# Weighted correlation from https://github.com/matthijsz/weightedcorr.git
 
 class calcium(QWidget):
     # your QWidget.__init__ can optionally request the napari viewer instance
@@ -125,7 +131,6 @@ class calcium(QWidget):
             self.viewer.add_image(local_max_mask, name='Local Max')
             markers = morphology.label(local_max_mask)
             labels = segmentation.watershed(-distance, markers, mask=img_predict_filtered_th)
-            self.viewer.add_labels(labels, name='Before removal', opacity=1)
             roi_dict, labels = self.getROIpos(labels, background_label)
             label_layer = self.viewer.add_labels(labels, name='Segmentation', opacity=1)
         else:
@@ -244,15 +249,28 @@ class calcium(QWidget):
         spike_times = {}
         self.max_correlations = {}
         self.max_cor_templates = {}
+        weights = {}
 
+        for spk_temp in spike_templates:
+            weight = np.zeros_like(spike_templates[spk_temp])
+            spike_max = np.argmax(spike_templates[spk_temp]) + 1
+            weight[:spike_max] = 2
+            weight[spike_max:] = 1
+            weights[spk_temp] = weight
+        print(weights)
         max_temp_len = max([len(temp) for temp in spike_templates.values()])
+
         for r in roi_dff:
             m = np.zeros((len(roi_dff[r]),len(spike_templates)))
             roi_dff_pad = np.pad(roi_dff[r], (0, (max_temp_len - 1)), mode='constant')
             for spike_template_index, spk_temp in enumerate(spike_templates):
                 for i in range(len(roi_dff[r])):
-                    rho, pval = spearmanr(roi_dff_pad[i:(i+len(spike_templates[spk_temp]))], spike_templates[spk_temp])
-                    m[i, spike_template_index] = rho
+                    corr_data = {'trace': roi_dff_pad[i:(i+len(spike_templates[spk_temp]))],
+                                 'template': spike_templates[spk_temp],
+                                 'weight': weights[spk_temp]}
+                    corr_df = pd.DataFrame(corr_data)
+                    p = WeightedCorr(xyw=corr_df)(method='spearman')
+                    m[i, spike_template_index] = p
 
             spike_times[r] = []
             spike_correlations = np.max(m, axis=1)
