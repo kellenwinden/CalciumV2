@@ -14,7 +14,6 @@ from qtpy.QtWidgets import QWidget, QVBoxLayout, QPushButton, QFileDialog
 
 import numpy as np
 from scipy import ndimage as ndi
-from scipy.stats import spearmanr
 from skimage import filters, segmentation, morphology, feature
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt5agg import FigureCanvas
@@ -24,7 +23,7 @@ import tensorflow.keras.backend as K
 import os
 import csv
 import pandas as pd
-from .WeightedCorr import WeightedCorr
+from time import time
 
 
 
@@ -244,33 +243,24 @@ class calcium(QWidget):
             self.canvas_traces.draw_idle()
 
     def find_peaks(self, roi_dff, template_file, spk_threshold, reset_threshold):
+        start_time = time()
         f = importlib.resources.open_text(__package__, template_file)
         spike_templates = json.load(f)
         spike_times = {}
         self.max_correlations = {}
         self.max_cor_templates = {}
-        weights = {}
 
-        for spk_temp in spike_templates:
-            weight = np.zeros_like(spike_templates[spk_temp])
-            spike_max = np.argmax(spike_templates[spk_temp]) + 1
-            weight[:spike_max] = 2
-            weight[spike_max:] = 1
-            weights[spk_temp] = weight
-        print(weights)
         max_temp_len = max([len(temp) for temp in spike_templates.values()])
 
         for r in roi_dff:
+            print("\n", r)
             m = np.zeros((len(roi_dff[r]),len(spike_templates)))
             roi_dff_pad = np.pad(roi_dff[r], (0, (max_temp_len - 1)), mode='constant')
             for spike_template_index, spk_temp in enumerate(spike_templates):
                 for i in range(len(roi_dff[r])):
-                    corr_data = {'trace': roi_dff_pad[i:(i+len(spike_templates[spk_temp]))],
-                                 'template': spike_templates[spk_temp],
-                                 'weight': weights[spk_temp]}
-                    corr_df = pd.DataFrame(corr_data)
-                    p = WeightedCorr(xyw=corr_df)(method='spearman')
-                    m[i, spike_template_index] = p
+                    p = np.corrcoef(roi_dff_pad[i:(i + len(spike_templates[spk_temp]))],
+                                    spike_templates[spk_temp])
+                    m[i, spike_template_index] = p[0,1]
 
             spike_times[r] = []
             spike_correlations = np.max(m, axis=1)
@@ -285,9 +275,17 @@ class calcium(QWidget):
                         if spike_correlations[j + 1] > spike_correlations[s_max]:
                             s_max = j + 1
                         j += 1
-                    if np.max(roi_dff[r][s_max:(s_max + 20)]) > 0.01:
+                    window_start = max(0, (s_max - 5))
+                    window_end = min((len(roi_dff[r]) - 1), (s_max + 15))
+                    window = roi_dff[r][window_start:window_end]
+                    peak_height = np.max(window) - np.min(window)
+                    print(peak_height)
+                    # if np.max(roi_dff[r][s_max:(s_max + 20)]) > 0.01:
+                    if peak_height > 0.01:
                         spike_times[r].append(s_max)
                 j += 1
+        end_time = time()
+        print(f'total time: {end_time - start_time}')
 
         return spike_times
 
