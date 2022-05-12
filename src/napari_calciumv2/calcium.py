@@ -281,7 +281,7 @@ class calcium(QWidget):
                     peak_height = np.max(window) - np.min(window)
                     print(peak_height)
                     # if np.max(roi_dff[r][s_max:(s_max + 20)]) > 0.01:
-                    if peak_height > 0.01:
+                    if peak_height > 0.02:
                         spike_times[r].append(s_max)
                 j += 1
         end_time = time()
