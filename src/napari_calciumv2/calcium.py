@@ -271,10 +271,18 @@ class calcium(QWidget):
             while j < len(spike_correlations):
                 if spike_correlations[j] > spk_threshold:
                     s_max = j
-                    while spike_correlations[j + 1] > reset_threshold:
-                        if spike_correlations[j + 1] > spike_correlations[s_max]:
-                            s_max = j + 1
-                        j += 1
+                    loop = True
+                    print(f'start loop at {j}')
+                    while loop:
+                        while spike_correlations[j + 1] > reset_threshold:
+                            if spike_correlations[j + 1] > spike_correlations[s_max]:
+                                s_max = j + 1
+                            j += 1
+                        if spike_correlations[j + 2] > reset_threshold:
+                            j += 1
+                        else:
+                            loop = False
+                    print(f'end loop at {j} with s_max of {s_max}')
                     window_start = max(0, (s_max - 5))
                     window_end = min((len(roi_dff[r]) - 1), (s_max + 15))
                     window = roi_dff[r][window_start:window_end]
