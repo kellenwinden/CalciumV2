@@ -75,6 +75,8 @@ class calcium(QWidget):
         self.roi_dict = None
         self.roi_signal = None
         self.roi_dff = None
+        self.median = None
+        self.bg = None
         self.spike_times = None
         self.max_correlations = None
         self.max_cor_templates = None
@@ -207,21 +209,26 @@ class calcium(QWidget):
 
     def calculateDFF(self, roi_signal):
         dff = {}
+        self.median = {}
+        self.bg = {}
         for n in roi_signal:
-            background = self.calculate_background(roi_signal[n],100)
+            background, self.median[n] = self.calculate_background(roi_signal[n], 200)
+            self.bg[n] = background.tolist()
             dff[n] = (roi_signal[n] - background)/background
         return dff
 
     def calculate_background(self,f,window):
         background = np.zeros_like(f)
         background[0] = f[0]
+        median = [background[0]]
         for y in range(1,len(f)):
             x = y - window
             if x < 0:
                 x = 0
             lower_quantile = f[x:y] <= np.median(f[x:y])
             background[y] = np.mean(f[x:y][lower_quantile])
-        return background
+            median.append(np.median(f[x:y]))
+        return background, median
 
     def plot_values(self, dff, labels, layer, spike_times):
         for i in range(1, np.max(labels) + 1):
@@ -322,6 +329,12 @@ class calcium(QWidget):
             for i in range(dff_signal.shape[0]):
                 writer.writerow(dff_signal[i,:])
 
+        with open(save_path +'/medians.json', 'w') as median_file:
+            json.dump(self.median, median_file, indent="")
+
+        with open(save_path +'/background.json', 'w') as bg_file:
+            json.dump(self.bg, bg_file, indent="")
+
         with open(save_path + '/spike_times.json', 'w') as spike_file:
             json.dump(self.spike_times, spike_file, indent="")
 
@@ -380,6 +393,8 @@ class calcium(QWidget):
         self.roi_dict = None
         self.roi_signal = None
         self.roi_dff = None
+        self.median = None
+        self.bg = None
         self.spike_times = None
         self.max_correlations = None
         self.max_cor_templates = None
