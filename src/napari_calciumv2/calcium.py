@@ -10,7 +10,7 @@ import importlib.resources
 
 from napari_plugin_engine import napari_hook_implementation
 from qtpy.QtWidgets import QWidget, QVBoxLayout, QPushButton, QFileDialog
-#from magicgui import magic_factory
+# from magicgui import magic_factory
 
 import numpy as np
 from scipy import ndimage as ndi
@@ -25,8 +25,6 @@ import csv
 import pandas as pd
 from time import time
 
-
-
 """
 - Moved spike.json into napari_calciumv2 directory (next to __init__.py)
 - Added:
@@ -35,6 +33,7 @@ package_data = {
     }
   as an argument for setup() function in the setup.py file
 """
+
 
 # Weighted correlation from https://github.com/matthijsz/weightedcorr.git
 
@@ -45,7 +44,6 @@ class calcium(QWidget):
     # 2. use a type annotation of 'napari.viewer.Viewer' for any parameter
     def __init__(self, napari_viewer):
         super().__init__()
-
 
         self.viewer = napari_viewer
 
@@ -80,6 +78,8 @@ class calcium(QWidget):
         self.spike_times = None
         self.max_correlations = None
         self.max_cor_templates = None
+        self.roi_analysis = None
+        self.framerate = None
         self.img_path = None
         self.colors = []
 
@@ -103,14 +103,15 @@ class calcium(QWidget):
 
             spike_templates_file = 'spikes.json'
             self.spike_times = self.find_peaks(self.roi_dff, spike_templates_file, 0.85, 0.80)
+            self.roi_analysis, self.framerate = self.analyze_ROI(self.roi_dff, self.spike_times)
 
             self.plot_values(self.roi_dff, self.labels, self.label_layer, self.spike_times)
 
             print('ROI average prediction:', self.get_ROI_prediction(self.roi_dict, self.prediction_layer.data))
 
     def segment(self, img_stack, minsize, background_label):
-        img_norm = np.max(img_stack,axis=0)/np.max(img_stack)
-        img_predict = self.model_unet.predict(img_norm[np.newaxis,:,:])[0,:,:]
+        img_norm = np.max(img_stack, axis=0) / np.max(img_stack)
+        img_predict = self.model_unet.predict(img_norm[np.newaxis, :, :])[0, :, :]
 
         if np.max(img_predict) > 0.3:
             self.prediction_layer = self.viewer.add_image(img_predict, name='Prediction')
@@ -143,7 +144,7 @@ class calcium(QWidget):
 
         for x in range(labels.shape[0]):
             for y in range(labels.shape[1]):
-                roi_dict[labels[x,y]].append([x,y])
+                roi_dict[labels[x, y]].append([x, y])
 
         del roi_dict[background_label]
 
@@ -198,7 +199,7 @@ class calcium(QWidget):
             f[r] = np.zeros(img_stack.shape[0])
             roi_coords = np.array(roi_dict[r]).T.tolist()
             for z in range(img_stack.shape[0]):
-                img_frame = img_stack[z,:,:]
+                img_frame = img_stack[z, :, :]
                 f[r][z] = np.mean(img_frame[tuple(roi_coords)])
         return f
 
@@ -209,14 +210,15 @@ class calcium(QWidget):
         for n in roi_signal:
             background, self.median[n] = self.calculate_background(roi_signal[n], 200)
             self.bg[n] = background.tolist()
-            dff[n] = (roi_signal[n] - background)/background
+            dff[n] = (roi_signal[n] - background) / background
+            dff[n] = dff[n] - np.min(dff[n])
         return dff
 
-    def calculate_background(self,f,window):
+    def calculate_background(self, f, window):
         background = np.zeros_like(f)
         background[0] = f[0]
         median = [background[0]]
-        for y in range(1,len(f)):
+        for y in range(1, len(f)):
             x = y - window
             if x < 0:
                 x = 0
@@ -230,19 +232,35 @@ class calcium(QWidget):
             color = layer.get_color(i)
             color = (color[0], color[1], color[2], color[3])
             self.colors.append(color)
-        self.axes.set_prop_cycle(color=self.colors)
 
-        dff_max = np.zeros(len(dff))
-        for dff_index, dff_key in enumerate(dff):
-            dff_max[dff_index] = np.max(dff[dff_key])
-        height_increment = max(dff_max)
+        # roi_to_plot = []
+        # colors_to_plot = []
+        # for i, r in enumerate(spike_times):
+        #     if len(spike_times[r]) > 0:
+        #         roi_to_plot.append(r)
+        #         colors_to_plot.append(self.colors[i])
 
-        for height_index, d in enumerate(dff):
-            self.axes.plot(dff[d] + height_index * (1.2 * height_increment))
-            if len(spike_times[d]) > 0:
-                self.axes.plot(spike_times[d],dff[d][spike_times[d]] + height_index * (1.2 * height_increment),
-                               ms=2, color='k', marker='o', ls='')
-            self.canvas_traces.draw_idle()
+        roi_to_plot = [r for r in spike_times if len(spike_times[r]) > 0]
+        print('roi to plot:', roi_to_plot)
+
+        if len(roi_to_plot) > 0:
+            colors_to_plot = [self.colors[r - 1] for r in roi_to_plot]
+
+            self.axes.set_prop_cycle(color=colors_to_plot)
+
+            dff_max = np.zeros(len(roi_to_plot))
+            for dff_index, dff_key in enumerate(roi_to_plot):
+                dff_max[dff_index] = np.max(dff[dff_key])
+            height_increment = max(dff_max)
+
+            for height_index, d in enumerate(roi_to_plot):
+                self.axes.plot(dff[d] + height_index * (1.2 * height_increment))
+                if len(spike_times[d]) > 0:
+                    self.axes.plot(spike_times[d], dff[d][spike_times[d]] + height_index * (1.2 * height_increment),
+                                   ms=2, color='k', marker='o', ls='')
+                self.canvas_traces.draw_idle()
+        else:
+            print('No events detected')
 
     def find_peaks(self, roi_dff, template_file, spk_threshold, reset_threshold):
         start_time = time()
@@ -256,13 +274,13 @@ class calcium(QWidget):
 
         for r in roi_dff:
             print("\n", r)
-            m = np.zeros((len(roi_dff[r]),len(spike_templates)))
+            m = np.zeros((len(roi_dff[r]), len(spike_templates)))
             roi_dff_pad = np.pad(roi_dff[r], (0, (max_temp_len - 1)), mode='constant')
             for spike_template_index, spk_temp in enumerate(spike_templates):
                 for i in range(len(roi_dff[r])):
                     p = np.corrcoef(roi_dff_pad[i:(i + len(spike_templates[spk_temp]))],
                                     spike_templates[spk_temp])
-                    m[i, spike_template_index] = p[0,1]
+                    m[i, spike_template_index] = p[0, 1]
 
             spike_times[r] = []
             spike_correlations = np.max(m, axis=1)
@@ -290,7 +308,6 @@ class calcium(QWidget):
                     window = roi_dff[r][window_start:window_end]
                     peak_height = np.max(window) - np.min(window)
                     print(peak_height)
-                    # if np.max(roi_dff[r][s_max:(s_max + 20)]) > 0.01:
                     if peak_height > 0.02:
                         spike_times[r].append(s_max)
                 j += 1
@@ -299,39 +316,222 @@ class calcium(QWidget):
 
         return spike_times
 
+    def analyze_ROI(self, roi_dff, spk_times):
+        metadata_file = self.img_path[0:-8] + '_metadata.txt'
+        framerate = 0
+
+        if os.path.exists(metadata_file):
+            with open(metadata_file, 'r') as f:
+                metadata = f.readlines()
+
+            for line in metadata:
+                line = line.strip()
+                if line.startswith('"Exposure-ms": '):
+                    exposure = float(line[15:-1]) / 1000  # exposure in seconds
+                    framerate = 1 / exposure  # frames/second
+                    break
+        print('framerate is:', framerate, 'frames/second')
+
+        amplitude_info = self.get_amplitude(roi_dff, spk_times)
+        time_to_rise = self.get_time_to_rise(amplitude_info, framerate)
+        max_slope = self.get_max_slope(roi_dff, amplitude_info)
+        IEI = self.analyze_IEI(spk_times, framerate)
+        roi_analysis = amplitude_info
+
+        for r in roi_analysis:
+            roi_analysis[r]['spike_times'] = spk_times[r]
+            roi_analysis[r]['time_to_rise'] = time_to_rise[r]
+            roi_analysis[r]['max_slope'] = max_slope[r]
+            roi_analysis[r]['IEI'] = IEI[r]
+
+        print(roi_analysis)
+        return roi_analysis, framerate
+
+    def get_amplitude(self, roi_dff, spk_times, deriv_threhold=0.01, reset_num=17, neg_reset_num=2, total_dist=40):
+        amplitude_info = {}
+
+        # for each ROI
+        for r in spk_times:
+            amplitude_info[r] = {}
+            amplitude_info[r]['amplitudes'] = []  # np.array([]) # np.zeros_like(spk_times[r])
+            amplitude_info[r]['peak_indices'] = []  # np.array([])# np.zeros_like(spk_times[r])
+            amplitude_info[r]['base_indices'] = []  # np.array([])# np.zeros_like(spk_times[r])
+
+            if len(spk_times[r]) > 0:
+                dff_deriv = np.diff(roi_dff[r])
+                print(f'ROI {r} spike times: {spk_times[r]}')
+
+                # for each spike in the ROI
+                for i in range(len(spk_times[r])):
+                    # Search for starting index for current spike
+                    searching = True
+                    under_thresh_count = 0
+                    total_count = 0
+                    start_index = spk_times[r][i]
+                    if start_index > 0:
+                        while searching:
+                            start_index -= 1
+                            total_count += 1
+                            # If collide with a new spike
+                            if start_index in spk_times[r]:
+                                subsearching = True
+                                negative_count = 0
+                                while subsearching:
+                                    start_index += 1
+                                    if dff_deriv[start_index] < 0:
+                                        negative_count += 1
+                                    else:
+                                        negative_count = 0
+                                    if negative_count == neg_reset_num:
+                                        subsearching = False
+                                break
+                            if dff_deriv[start_index] < deriv_threhold:
+                                under_thresh_count += 1
+                            else:
+                                under_thresh_count = 0
+                            if under_thresh_count == reset_num or start_index == 0 or total_count == total_dist:
+                                searching = False
+
+                    # Search for ending index for current spike
+                    searching = True
+                    under_thresh_count = 0
+                    total_count = 0
+                    end_index = spk_times[r][i]
+                    if end_index < (len(dff_deriv) - 1):
+                        while searching:
+                            end_index += 1
+                            total_count += 1
+                            # If collide with a new spike
+                            if end_index in spk_times[r]:
+                                subsearching = True
+                                negative_count = 0
+                                while subsearching:
+                                    end_index -= 1
+                                    if dff_deriv[end_index] < 0:
+                                        negative_count += 1
+                                    else:
+                                        negative_count = 0
+                                    if negative_count == neg_reset_num:
+                                        subsearching = False
+                                break
+                            if dff_deriv[end_index] < deriv_threhold:
+                                under_thresh_count += 1
+                            else:
+                                under_thresh_count = 0
+                            if under_thresh_count == reset_num or end_index == (len(dff_deriv) - 1) or \
+                                    total_count == total_dist:
+                                searching = False
+                    print(f'ROI {r} spike {i} - start_index: {start_index}, end_index: {end_index}')
+                    # Save data
+                    spk_to_end = roi_dff[r][spk_times[r][i]:(end_index + 1)]
+                    start_to_spk = roi_dff[r][start_index:(spk_times[r][i] + 1)]
+                    amplitude_info[r]['amplitudes'].append(np.max(spk_to_end) - np.min(start_to_spk))
+                    amplitude_info[r]['peak_indices'].append(int(spk_times[r][i] + np.argmax(spk_to_end)))
+                    amplitude_info[r]['base_indices'].append(int(spk_times[r][i] -
+                                                                 (len(start_to_spk) - (np.argmin(start_to_spk) + 1))))
+                    # np.append(amplitude_info[r]['amplitudes'], (np.max(spk_to_end) - np.min(start_to_spk)))
+                    # np.append(amplitude_info[r]['peak_indices'], (spk_times[r][i] + np.argmax(spk_to_end)))
+                    # amplitude_info[r]['amplitudes'][i] = np.max(spk_to_end) - np.min(start_to_spk)
+                    # amplitude_info[r]['peak_indices'][i] = spk_times[r][i] + (np.argmax(spk_to_end))
+
+        for r in amplitude_info:
+            print('ROI', r)
+            print('amp:', amplitude_info[r]['amplitudes'])
+            print('peak:', amplitude_info[r]['peak_indices'])
+            print('base:', amplitude_info[r]['base_indices'])
+        return amplitude_info
+
+    def get_time_to_rise(self, amplitude_info, framerate):
+        time_to_rise = {}
+        for r in amplitude_info:
+            time_to_rise[r] = []
+            if len(amplitude_info[r]['peak_indices']) > 0:
+                for i in range(len(amplitude_info[r]['peak_indices'])):
+                    peak_index = amplitude_info[r]['peak_indices'][i]
+                    base_index = amplitude_info[r]['base_indices'][i]
+                    frames = peak_index - base_index + 1
+                    if framerate:
+                        time = frames / framerate  # frames * (seconds/frames) = seconds
+                        time_to_rise[r].append(time)
+                    else:
+                        time_to_rise[r].append(frames)
+
+        print('time to rise:', time_to_rise)
+        return time_to_rise
+
+    def get_max_slope(self, roi_dff, amplitude_info):
+        max_slope = {}
+        for r in amplitude_info:
+            max_slope[r] = []
+            dff_deriv = np.diff(roi_dff[r])
+            if len(amplitude_info[r]['peak_indices']) > 0:
+                for i in range(len(amplitude_info[r]['peak_indices'])):
+                    peak_index = amplitude_info[r]['peak_indices'][i]
+                    base_index = amplitude_info[r]['base_indices'][i]
+                    slope_window = dff_deriv[base_index:(peak_index + 1)]
+                    max_slope[r].append(np.max(slope_window))
+
+        print('max slope:', max_slope)
+        return max_slope
+
+    def analyze_IEI(self, spk_times, framerate):
+        IEI = {}
+        for r in spk_times:
+            IEI[r] = []
+            if len(spk_times[r]) > 1:
+                IEI_frames = np.mean(np.diff(np.array(spk_times[r])))
+                if framerate:
+                    IEI_time = IEI_frames / framerate # in seconds
+                    IEI[r].append(IEI_time)
+                else:
+                    IEI[r].append(IEI_frames)
+        print('IEI:', IEI)
+        return IEI
+
+    def analyze_active(self, spk_times):
+        active = 0
+        for r in spk_times:
+            if len(spk_times[r]) > 0:
+                active += 1
+        active /= len(spk_times)
+        return active
+
     def save_files(self):
         save_path = self.img_path[0:-4]
         if not os.path.isdir(save_path):
             os.mkdir(save_path)
 
-        raw_signal = np.zeros([len(self.roi_signal[list(self.roi_signal.keys())[0]]),len(self.roi_signal)])
+        raw_signal = np.zeros([len(self.roi_signal[list(self.roi_signal.keys())[0]]), len(self.roi_signal)])
         for i, r in enumerate(self.roi_signal):
-            raw_signal[:,i] = self.roi_signal[r]
+            raw_signal[:, i] = self.roi_signal[r]
 
         with open(save_path + '/raw_signal.csv', 'w') as signal_file:
             writer = csv.writer(signal_file)
             writer.writerow(self.roi_signal.keys())
             for i in range(raw_signal.shape[0]):
-                writer.writerow(raw_signal[i,:])
+                writer.writerow(raw_signal[i, :])
 
-        dff_signal = np.zeros([len(self.roi_dff[list(self.roi_dff.keys())[0]]),len(self.roi_dff)])
+        dff_signal = np.zeros([len(self.roi_dff[list(self.roi_dff.keys())[0]]), len(self.roi_dff)])
         for i, r in enumerate(self.roi_dff):
-            dff_signal[:,i] = self.roi_dff[r]
+            dff_signal[:, i] = self.roi_dff[r]
 
         with open(save_path + '/dff.csv', 'w') as dff_file:
             writer = csv.writer(dff_file)
             writer.writerow(self.roi_dff.keys())
             for i in range(dff_signal.shape[0]):
-                writer.writerow(dff_signal[i,:])
+                writer.writerow(dff_signal[i, :])
 
-        with open(save_path +'/medians.json', 'w') as median_file:
+        with open(save_path + '/medians.json', 'w') as median_file:
             json.dump(self.median, median_file, indent="")
 
-        with open(save_path +'/background.json', 'w') as bg_file:
+        with open(save_path + '/background.json', 'w') as bg_file:
             json.dump(self.bg, bg_file, indent="")
 
         with open(save_path + '/spike_times.json', 'w') as spike_file:
             json.dump(self.spike_times, spike_file, indent="")
+
+        with open(save_path + '/roi_analysis.json', 'w') as analysis_file:
+            json.dump(self.roi_analysis, analysis_file, indent="")
 
         max_cor = np.zeros([len(self.max_correlations[list(self.max_correlations.keys())[0]]),
                             len(self.max_correlations)])
@@ -357,7 +557,7 @@ class calcium(QWidget):
 
         self.canvas_traces.print_png(save_path + '/traces.png')
 
-        label_array = np.stack((self.label_layer.data,)*4, axis=-1).astype(float)
+        label_array = np.stack((self.label_layer.data,) * 4, axis=-1).astype(float)
         for i in range(1, np.max(self.labels) + 1):
             i_coords = np.asarray(label_array == [i, i, i, i]).nonzero()
             label_array[(i_coords[0], i_coords[1])] = self.colors[i - 1]
@@ -373,6 +573,45 @@ class calcium(QWidget):
             json.dump(roi_centers, roi_file, indent="")
 
         self.prediction_layer.save(save_path + '/prediction.tif')
+
+        self.generate_summary(save_path)
+
+    def generate_summary(self, save_path):
+        total_amplitude = []
+        total_time_to_rise = []
+        total_max_slope = []
+        total_IEI = []
+
+        for r in self.roi_analysis:
+            if len(self.roi_analysis[r]['amplitudes']) > 0:
+                total_amplitude.extend(self.roi_analysis[r]['amplitudes'])
+                total_time_to_rise.extend(self.roi_analysis[r]['time_to_rise'])
+                total_max_slope.extend(self.roi_analysis[r]['max_slope'])
+            if len(self.roi_analysis[r]['IEI']) > 0:
+                total_IEI.extend(self.roi_analysis[r]['IEI'])
+
+        avg_amplitude = np.mean(np.array(total_amplitude))
+        avg_time_to_rise = np.mean(np.array(total_time_to_rise))
+        avg_max_slope = np.mean(np.array(total_max_slope))
+        avg_IEI = np.mean(np.array(total_IEI))
+        percent_active = self.analyze_active(self.spike_times)
+
+        with open(save_path + '/summary.txt', 'w') as sum_file:
+            sum_file.write(f'Filename: {self.img_name}\n')
+            if self.framerate:
+                sum_file.write(f'Framerate: {self.framerate} frames/seconds\n')
+            else:
+                sum_file.write('No framerate detected\n')
+            sum_file.write(f'Total ROI: {len(self.roi_dict)}\n')
+            sum_file.write(f'Average Amplitude: {avg_amplitude}\n')
+            sum_file.write(f'Average Max Slope: {avg_max_slope}\n')
+            if self.framerate:
+                sum_file.write(f'Average Time to Rise: {avg_time_to_rise} seconds\n')
+                sum_file.write(f'Average Interevent Interval (IEI): {avg_IEI} seconds\n')
+            else:
+                sum_file.write(f'Average Time to Rise: {avg_time_to_rise} frames\n')
+                sum_file.write(f'Average Interevent Interval (IEI): {avg_IEI} frames\n')
+            sum_file.write(f'Percent Active ROI: {percent_active}')
 
     def clear(self):
         i = len(self.viewer.layers) - 1
@@ -393,14 +632,17 @@ class calcium(QWidget):
         self.spike_times = None
         self.max_correlations = None
         self.max_cor_templates = None
+        self.roi_analysis = None
+        self.framerate = None
         self.img_path = None
         self.colors = []
 
         self.axes.cla()
         self.canvas_traces.draw_idle()
 
-#@magic_factory
-#def example_magic_widget(img_layer: "napari.layers.Image"):
+
+# @magic_factory
+# def example_magic_widget(img_layer: "napari.layers.Image"):
 #    print(f"you have selected {img_layer}")
 
 
