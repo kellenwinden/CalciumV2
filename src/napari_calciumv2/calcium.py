@@ -596,6 +596,7 @@ class calcium(QWidget):
             if len(total_IEI) > 0:
                 avg_IEI = np.mean(np.array(total_IEI))
                 avg_IEI = f'{avg_IEI} {units}'
+                std_IEI = np.std(np.array(total_IEI))
             else:
                 avg_IEI = 'Only one event per ROI'
         else:
@@ -612,11 +613,14 @@ class calcium(QWidget):
             else:
                 sum_file.write('No framerate detected\n')
             sum_file.write(f'Total ROI: {len(self.roi_dict)}\n')
+            sum_file.write(f'Percent Active ROI: {percent_active}\n')
             sum_file.write(f'Average Amplitude: {avg_amplitude}\n')
             sum_file.write(f'Average Max Slope: {avg_max_slope}\n')
             sum_file.write(f'Average Time to Rise: {avg_time_to_rise}\n')
             sum_file.write(f'Average Interevent Interval (IEI): {avg_IEI}\n')
-            sum_file.write(f'Percent Active ROI: {percent_active}')
+            if len(total_IEI) > 0:
+                sum_file.write(f'\tIEI Standard Deviation: {std_IEI}')
+
 
     def clear(self):
         i = len(self.viewer.layers) - 1
