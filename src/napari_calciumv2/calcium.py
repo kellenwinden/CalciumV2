@@ -9,7 +9,7 @@ Replace code below according to your needs.
 import importlib.resources
 
 from napari_plugin_engine import napari_hook_implementation
-from qtpy.QtWidgets import QWidget, QVBoxLayout, QPushButton, QFileDialog
+from qtpy.QtWidgets import QWidget, QVBoxLayout, QPushButton, QFileDialog, QMessageBox
 # from magicgui import magic_factory
 
 import numpy as np
@@ -127,7 +127,7 @@ class calcium(QWidget):
             roi_dict, labels = self.getROIpos(labels, background_label)
             label_layer = self.viewer.add_labels(labels, name='Segmentation', opacity=1)
         else:
-            print('No ROIs detected')
+            self.general_msg('No ROI', 'There were no cells detected')
             labels, label_layer, roi_dict = None, None, None
 
         return labels, label_layer, roi_dict
@@ -240,9 +240,8 @@ class calcium(QWidget):
                 roi_to_plot.append(r)
                 colors_to_plot.append(self.colors[i])
 
-        print('ROI to plot:', roi_to_plot)
-
         if len(roi_to_plot) > 0:
+            print('ROI to plot:', roi_to_plot)
             self.axes.set_prop_cycle(color=colors_to_plot)
 
             dff_max = np.zeros(len(roi_to_plot))
@@ -257,7 +256,7 @@ class calcium(QWidget):
                                    ms=2, color='k', marker='o', ls='')
                 self.canvas_traces.draw_idle()
         else:
-            print('No events detected')
+            self.general_msg('No activity', 'No calcium events were detected for any ROI')
 
     def find_peaks(self, roi_dff, template_file, spk_threshold, reset_threshold):
         # start_time = time()
@@ -491,84 +490,87 @@ class calcium(QWidget):
         return active
 
     def save_files(self):
-        save_path = self.img_path[0:-4]
-        if not os.path.isdir(save_path):
-            os.mkdir(save_path)
+        if self.roi_dict:
+            save_path = self.img_path[0:-4]
+            if not os.path.isdir(save_path):
+                os.mkdir(save_path)
 
-        raw_signal = np.zeros([len(self.roi_signal[list(self.roi_signal.keys())[0]]), len(self.roi_signal)])
-        for i, r in enumerate(self.roi_signal):
-            raw_signal[:, i] = self.roi_signal[r]
+            raw_signal = np.zeros([len(self.roi_signal[list(self.roi_signal.keys())[0]]), len(self.roi_signal)])
+            for i, r in enumerate(self.roi_signal):
+                raw_signal[:, i] = self.roi_signal[r]
 
-        with open(save_path + '/raw_signal.csv', 'w') as signal_file:
-            writer = csv.writer(signal_file)
-            writer.writerow(self.roi_signal.keys())
-            for i in range(raw_signal.shape[0]):
-                writer.writerow(raw_signal[i, :])
+            with open(save_path + '/raw_signal.csv', 'w') as signal_file:
+                writer = csv.writer(signal_file)
+                writer.writerow(self.roi_signal.keys())
+                for i in range(raw_signal.shape[0]):
+                    writer.writerow(raw_signal[i, :])
 
-        dff_signal = np.zeros([len(self.roi_dff[list(self.roi_dff.keys())[0]]), len(self.roi_dff)])
-        for i, r in enumerate(self.roi_dff):
-            dff_signal[:, i] = self.roi_dff[r]
+            dff_signal = np.zeros([len(self.roi_dff[list(self.roi_dff.keys())[0]]), len(self.roi_dff)])
+            for i, r in enumerate(self.roi_dff):
+                dff_signal[:, i] = self.roi_dff[r]
 
-        with open(save_path + '/dff.csv', 'w') as dff_file:
-            writer = csv.writer(dff_file)
-            writer.writerow(self.roi_dff.keys())
-            for i in range(dff_signal.shape[0]):
-                writer.writerow(dff_signal[i, :])
+            with open(save_path + '/dff.csv', 'w') as dff_file:
+                writer = csv.writer(dff_file)
+                writer.writerow(self.roi_dff.keys())
+                for i in range(dff_signal.shape[0]):
+                    writer.writerow(dff_signal[i, :])
 
-        with open(save_path + '/medians.json', 'w') as median_file:
-            json.dump(self.median, median_file, indent="")
+            with open(save_path + '/medians.json', 'w') as median_file:
+                json.dump(self.median, median_file, indent="")
 
-        with open(save_path + '/background.json', 'w') as bg_file:
-            json.dump(self.bg, bg_file, indent="")
+            with open(save_path + '/background.json', 'w') as bg_file:
+                json.dump(self.bg, bg_file, indent="")
 
-        with open(save_path + '/spike_times.json', 'w') as spike_file:
-            json.dump(self.spike_times, spike_file, indent="")
+            with open(save_path + '/spike_times.json', 'w') as spike_file:
+                json.dump(self.spike_times, spike_file, indent="")
 
-        with open(save_path + '/roi_analysis.json', 'w') as analysis_file:
-            json.dump(self.roi_analysis, analysis_file, indent="")
+            with open(save_path + '/roi_analysis.json', 'w') as analysis_file:
+                json.dump(self.roi_analysis, analysis_file, indent="")
 
-        max_cor = np.zeros([len(self.max_correlations[list(self.max_correlations.keys())[0]]),
-                            len(self.max_correlations)])
-        for i, r in enumerate(self.max_correlations):
-            max_cor[:, i] = self.max_correlations[r]
+            max_cor = np.zeros([len(self.max_correlations[list(self.max_correlations.keys())[0]]),
+                                len(self.max_correlations)])
+            for i, r in enumerate(self.max_correlations):
+                max_cor[:, i] = self.max_correlations[r]
 
-        with open(save_path + '/max_correlations.csv', 'w') as cor_file:
-            writer = csv.writer(cor_file)
-            writer.writerow(self.max_correlations.keys())
-            for i in range(max_cor.shape[0]):
-                writer.writerow(max_cor[i, :])
+            with open(save_path + '/max_correlations.csv', 'w') as cor_file:
+                writer = csv.writer(cor_file)
+                writer.writerow(self.max_correlations.keys())
+                for i in range(max_cor.shape[0]):
+                    writer.writerow(max_cor[i, :])
 
-        max_cor_temps = np.zeros([len(self.max_cor_templates[list(self.max_cor_templates.keys())[0]]),
-                                  len(self.max_cor_templates)])
-        for i, r in enumerate(self.max_cor_templates):
-            max_cor_temps[:, i] = self.max_cor_templates[r]
+            max_cor_temps = np.zeros([len(self.max_cor_templates[list(self.max_cor_templates.keys())[0]]),
+                                      len(self.max_cor_templates)])
+            for i, r in enumerate(self.max_cor_templates):
+                max_cor_temps[:, i] = self.max_cor_templates[r]
 
-        with open(save_path + '/max_cor_templates.csv', 'w') as cor_temp_file:
-            writer = csv.writer(cor_temp_file)
-            writer.writerow(self.max_cor_templates.keys())
-            for i in range(max_cor_temps.shape[0]):
-                writer.writerow(max_cor_temps[i, :])
+            with open(save_path + '/max_cor_templates.csv', 'w') as cor_temp_file:
+                writer = csv.writer(cor_temp_file)
+                writer.writerow(self.max_cor_templates.keys())
+                for i in range(max_cor_temps.shape[0]):
+                    writer.writerow(max_cor_temps[i, :])
 
-        self.canvas_traces.print_png(save_path + '/traces.png')
+            self.canvas_traces.print_png(save_path + '/traces.png')
 
-        label_array = np.stack((self.label_layer.data,) * 4, axis=-1).astype(float)
-        for i in range(1, np.max(self.labels) + 1):
-            i_coords = np.asarray(label_array == [i, i, i, i]).nonzero()
-            label_array[(i_coords[0], i_coords[1])] = self.colors[i - 1]
-        roi_layer = self.viewer.add_image(label_array, name='roi_image', visible=False)
-        roi_layer.save(save_path + '/ROIs.png')
+            label_array = np.stack((self.label_layer.data,) * 4, axis=-1).astype(float)
+            for i in range(1, np.max(self.labels) + 1):
+                i_coords = np.asarray(label_array == [i, i, i, i]).nonzero()
+                label_array[(i_coords[0], i_coords[1])] = self.colors[i - 1]
+            roi_layer = self.viewer.add_image(label_array, name='roi_image', visible=False)
+            roi_layer.save(save_path + '/ROIs.png')
 
-        roi_centers = {}
-        for roi_number, roi_coords in self.roi_dict.items():
-            center = np.mean(roi_coords, axis=0)
-            roi_centers[roi_number] = (int(center[0]), int(center[1]))
+            roi_centers = {}
+            for roi_number, roi_coords in self.roi_dict.items():
+                center = np.mean(roi_coords, axis=0)
+                roi_centers[roi_number] = (int(center[0]), int(center[1]))
 
-        with open(save_path + '/roi_centers.json', 'w') as roi_file:
-            json.dump(roi_centers, roi_file, indent="")
+            with open(save_path + '/roi_centers.json', 'w') as roi_file:
+                json.dump(roi_centers, roi_file, indent="")
 
-        self.prediction_layer.save(save_path + '/prediction.tif')
+            self.prediction_layer.save(save_path + '/prediction.tif')
 
-        self.generate_summary(save_path)
+            self.generate_summary(save_path)
+        else:
+            self.general_msg('No ROI', 'Cannot save data')
 
     def generate_summary(self, save_path):
         total_amplitude = []
@@ -621,6 +623,16 @@ class calcium(QWidget):
             if len(total_IEI) > 0:
                 sum_file.write(f'\tIEI Standard Deviation: {std_IEI}')
 
+    # Copied from Calcium_Analysis_Widget.py
+    def general_msg(self, message_1: str, message_2: str):
+        msg = QMessageBox()
+        # msg.setStyleSheet("QLabel {min-width: 250px; min-height: 30px;}")
+        msg_info_1 = f'<p style="font-size:18pt; color: #4e9a06;">{message_1}</p>'
+        msg.setText(msg_info_1)
+        msg_info_2 = f'<p style="font-size:15pt; color: #000000;">{message_2}</p>'
+        msg.setInformativeText(msg_info_2)
+        msg.setStandardButtons(QMessageBox.Ok)
+        msg.exec()
 
     def clear(self):
         i = len(self.viewer.layers) - 1
