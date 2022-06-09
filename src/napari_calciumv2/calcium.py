@@ -233,19 +233,19 @@ class calcium(QWidget):
             color = (color[0], color[1], color[2], color[3])
             self.colors.append(color)
 
-        # roi_to_plot = []
-        # colors_to_plot = []
-        # for i, r in enumerate(spike_times):
-        #     if len(spike_times[r]) > 0:
-        #         roi_to_plot.append(r)
-        #         colors_to_plot.append(self.colors[i])
+        # roi_to_plot = [r for r in spike_times if len(spike_times[r]) > 0]
+        # colors_to_plot = [self.colors[r - 1] for r in roi_to_plot]
 
-        roi_to_plot = [r for r in spike_times if len(spike_times[r]) > 0]
+        roi_to_plot = []
+        colors_to_plot = []
+        for i, r in enumerate(spike_times):
+            if len(spike_times[r]) > 0:
+                roi_to_plot.append(r)
+                colors_to_plot.append(self.colors[i])
+
         print('roi to plot:', roi_to_plot)
 
         if len(roi_to_plot) > 0:
-            colors_to_plot = [self.colors[r - 1] for r in roi_to_plot]
-
             self.axes.set_prop_cycle(color=colors_to_plot)
 
             dff_max = np.zeros(len(roi_to_plot))
