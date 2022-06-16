@@ -77,8 +77,10 @@ class calcium(QWidget):
         self.max_cor_templates = None
         self.roi_analysis = None
         self.framerate = None
+        self.global_sync = None
         self.img_path = None
         self.colors = []
+        # self.s = None
 
     def _on_click(self):
         self.img_stack = self.viewer.layers[0].data
@@ -101,6 +103,7 @@ class calcium(QWidget):
             spike_templates_file = 'spikes.json'
             self.spike_times = self.find_peaks(self.roi_dff, spike_templates_file, 0.85, 0.80)
             self.roi_analysis, self.framerate = self.analyze_ROI(self.roi_dff, self.spike_times)
+            self.global_sync = self.get_global_sync(self.roi_dff, self.spike_times)
 
             self.plot_values(self.roi_dff, self.labels, self.label_layer, self.spike_times)
             # print('ROI average prediction:', self.get_ROI_prediction(self.roi_dict, self.prediction_layer.data))
@@ -241,7 +244,7 @@ class calcium(QWidget):
                 colors_to_plot.append(self.colors[i])
 
         if len(roi_to_plot) > 0:
-            print('ROI to plot:', roi_to_plot)
+            print('Active ROI:', roi_to_plot)
             self.axes.set_prop_cycle(color=colors_to_plot)
 
             dff_max = np.zeros(len(roi_to_plot))
@@ -489,6 +492,79 @@ class calcium(QWidget):
         active /= len(spk_times)
         return active
 
+    def get_global_sync(self, roi_dff, spk_times):
+        eigenvalues = self.get_eigenvalues(roi_dff, spk_times)
+
+        if len(eigenvalues) > 0:
+            normalized_values = np.square(eigenvalues) / np.sum(np.square(eigenvalues))
+            global_sync = np.max(normalized_values)
+        else:
+            global_sync = 'No calcium events detected'
+
+        return global_sync
+
+    def get_eigenvalues(self, roi_dff, spk_times):
+        active_roi = [r for r in spk_times if len(spk_times[r]) > 0]
+
+        if len(active_roi) > 0:
+            print('phases:')
+            phases = {}
+            for r in active_roi:
+                phases[r] = self.get_phase(len(roi_dff[r]), spk_times[r])
+                print(r)
+                print(phases[r])
+
+            S = np.zeros((len(active_roi), len(active_roi)))
+            for i, r1 in enumerate(active_roi):
+                for j, r2 in enumerate(active_roi):
+                    S[i, j] = self.get_sync_index(phases[r1], phases[r2])
+
+            eigenvalues = np.linalg.eigh(S)[0]
+            # self.s = S
+
+            # np.set_printoptions(linewidth=10000, edgeitems=6)
+            # print('S:')
+            # print(S)
+            # print('eigen:', list(eigenvalues))
+        else:
+            eigenvalues = []
+
+        return eigenvalues
+
+    def get_sync_index(self, x_phase, y_phase):
+        phase_diff = self.get_phase_diff(x_phase, y_phase)
+        sync_index = np.sqrt((np.mean(np.cos(phase_diff)) ** 2) + (np.mean(np.sin(phase_diff)) ** 2))
+
+        return sync_index
+
+    def get_phase_diff(self, x_phase, y_phase):
+        x_phase = np.array(x_phase)
+        y_phase = np.array(y_phase)
+        phase_diff = np.mod(np.abs(x_phase - y_phase), (2 * np.pi))
+        # print('phase_diff', phase_diff)
+
+        return phase_diff # Numpy array
+
+    def get_phase(self, total_frames, spks):
+        spikes = spks.copy()
+        if len(spikes) == 0 or spikes[0] != 0:
+            spikes.insert(0, 0)
+        if spikes[-1] != (total_frames - 1):
+            spikes.append(total_frames - 1)
+
+        phase = []
+        for k in range(len(spikes) - 1):
+            t = spikes[k]
+            while t < spikes[k + 1]:
+                instant_phase = (2 * np.pi) * ((t - spikes[k]) / (spikes[k+1] - spikes[k])) + (2 * np.pi * k)
+                phase.append(instant_phase)
+                t += 1
+        phase.append(2 * np.pi * (len(spikes) - 1))
+
+        return phase # Python list
+
+        # start at k=0, first spike will just be 0
+
     def save_files(self):
         if self.roi_dict:
             save_path = self.img_path[0:-4]
@@ -569,8 +645,14 @@ class calcium(QWidget):
             self.prediction_layer.save(save_path + '/prediction.tif')
 
             self.generate_summary(save_path)
+
+            # with open(save_path + '/S.csv', 'w') as s_file:
+            #     writer = csv.writer(s_file)
+            #     for i in range(self.s.shape[0]):
+            #         writer.writerow(self.s[i, :])
         else:
             self.general_msg('No ROI', 'Cannot save data')
+
 
     def generate_summary(self, save_path):
         total_amplitude = []
@@ -609,7 +691,7 @@ class calcium(QWidget):
         percent_active = self.analyze_active(self.spike_times)
 
         with open(save_path + '/summary.txt', 'w') as sum_file:
-            sum_file.write(f'Filename: {self.img_name}\n')
+            sum_file.write(f'File: {self.img_path}\n')
             if self.framerate:
                 sum_file.write(f'Framerate: {self.framerate} frames/seconds\n')
             else:
@@ -621,7 +703,8 @@ class calcium(QWidget):
             sum_file.write(f'Average Time to Rise: {avg_time_to_rise}\n')
             sum_file.write(f'Average Interevent Interval (IEI): {avg_IEI}\n')
             if len(total_IEI) > 0:
-                sum_file.write(f'\tIEI Standard Deviation: {std_IEI}')
+                sum_file.write(f'\tIEI Standard Deviation: {std_IEI}\n')
+            sum_file.write(f'Global Synchronization Index: {self.global_sync}')
 
     # Copied from Calcium_Analysis_Widget.py
     def general_msg(self, message_1: str, message_2: str):
@@ -655,8 +738,10 @@ class calcium(QWidget):
         self.max_cor_templates = None
         self.roi_analysis = None
         self.framerate = None
+        self.global_sync = None
         self.img_path = None
         self.colors = []
+        # self.s = None
 
         self.axes.cla()
         self.canvas_traces.draw_idle()
