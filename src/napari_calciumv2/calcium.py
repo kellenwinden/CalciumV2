@@ -268,7 +268,6 @@ class calcium(QWidget):
         spike_times = {}
         self.max_correlations = {}
         self.max_cor_templates = {}
-
         max_temp_len = max([len(temp) for temp in spike_templates.values()])
 
         for r in roi_dff:
@@ -310,6 +309,14 @@ class calcium(QWidget):
                     if peak_height > 0.02:
                         spike_times[r].append(s_max)
                 j += 1
+
+            if len(spike_times[r]) >= 2:
+                for k in range(len(spike_times[r]) - 1):
+                    if spike_times[r][k] is not None:
+                        if (spike_times[r][k + 1] - spike_times[r][k]) <= 10:
+                            spike_times[r][k + 1] = None
+                spike_times[r] = [spk for spk in spike_times[r] if spk is not None]
+
         # end_time = time()
         # print(f'total time: {end_time - start_time}')
 
@@ -522,10 +529,10 @@ class calcium(QWidget):
             eigenvalues = np.linalg.eigh(S)[0]
             # self.s = S
 
-            # np.set_printoptions(linewidth=10000, edgeitems=6)
-            # print('S:')
-            # print(S)
-            # print('eigen:', list(eigenvalues))
+            np.set_printoptions(linewidth=10000, edgeitems=6)
+            print('S:')
+            print(S)
+            print('eigen:', list(eigenvalues))
         else:
             eigenvalues = []
 
