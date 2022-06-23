@@ -1,11 +1,3 @@
-"""
-This module is an example of a barebones QWidget plugin for napari
-
-It implements the ``napari_experimental_provide_dock_widget`` hook specification.
-see: https://napari.org/docs/dev/plugins/hook_specifications.html
-
-Replace code below according to your needs.
-"""
 import importlib.resources
 
 from napari_plugin_engine import napari_hook_implementation
@@ -23,13 +15,12 @@ import tensorflow.keras.backend as K
 import os
 import csv
 import pandas as pd
-from time import time
 
 """
 - Moved spike.json into napari_calciumv2 directory (next to __init__.py)
 - Added:
 package_data = {
-    'napari_calciumv2': ['*.json'],
+    'napari_calciumv2': ['*.json', '*.hdf5'],
     }
   as an argument for setup() function in the setup.py file
 """
@@ -232,10 +223,6 @@ class calcium(QWidget):
             color = (color[0], color[1], color[2], color[3])
             self.colors.append(color)
 
-        # Alternate approach for saving colors:
-        # roi_to_plot = [r for r in spike_times if len(spike_times[r]) > 0]
-        # colors_to_plot = [self.colors[r - 1] for r in roi_to_plot]
-
         roi_to_plot = []
         colors_to_plot = []
         for i, r in enumerate(spike_times):
@@ -262,7 +249,6 @@ class calcium(QWidget):
             self.general_msg('No activity', 'No calcium events were detected for any ROI')
 
     def find_peaks(self, roi_dff, template_file, spk_threshold, reset_threshold):
-        # start_time = time()
         f = importlib.resources.open_text(__package__, template_file)
         spike_templates = json.load(f)
         spike_times = {}
@@ -316,9 +302,6 @@ class calcium(QWidget):
                         if (spike_times[r][k + 1] - spike_times[r][k]) <= 10:
                             spike_times[r][k + 1] = None
                 spike_times[r] = [spk for spk in spike_times[r] if spk is not None]
-
-        # end_time = time()
-        # print(f'total time: {end_time - start_time}')
 
         return spike_times
 
@@ -527,9 +510,7 @@ class calcium(QWidget):
             for i, r1 in enumerate(active_roi):
                 for j, r2 in enumerate(active_roi):
                     connect_matrix[i, j] = self.get_sync_index(phases[r1], phases[r2])
-
             # self.A = connect_matrix
-
             np.set_printoptions(linewidth=10000, edgeitems=6)
             print('A:')
             print(connect_matrix)
@@ -569,8 +550,6 @@ class calcium(QWidget):
         phase.append(2 * np.pi * (len(spikes) - 1))
 
         return phase # Python list
-
-        # start at k=0, first spike will just be 0
 
     def save_files(self):
         if self.roi_dict:
@@ -712,7 +691,7 @@ class calcium(QWidget):
                 sum_file.write(f'\tIEI Standard Deviation: {std_IEI}\n')
             sum_file.write(f'Mean Global Connectivity: {self.mean_connect}')
 
-    # Copied from Calcium_Analysis_Widget.py
+    # Taken from napari-calcium plugin by Federico Gasparoli
     def general_msg(self, message_1: str, message_2: str):
         msg = QMessageBox()
         # msg.setStyleSheet("QLabel {min-width: 250px; min-height: 30px;}")
