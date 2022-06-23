@@ -77,10 +77,10 @@ class calcium(QWidget):
         self.max_cor_templates = None
         self.roi_analysis = None
         self.framerate = None
-        self.global_sync = None
+        self.mean_connect = None
         self.img_path = None
         self.colors = []
-        # self.s = None
+        # self.A = None
 
     def _on_click(self):
         self.img_stack = self.viewer.layers[0].data
@@ -103,7 +103,7 @@ class calcium(QWidget):
             spike_templates_file = 'spikes.json'
             self.spike_times = self.find_peaks(self.roi_dff, spike_templates_file, 0.85, 0.80)
             self.roi_analysis, self.framerate = self.analyze_ROI(self.roi_dff, self.spike_times)
-            self.global_sync = self.get_global_sync(self.roi_dff, self.spike_times)
+            self.mean_connect = self.get_mean_connect(self.roi_dff, self.spike_times)
 
             self.plot_values(self.roi_dff, self.labels, self.label_layer, self.spike_times)
             # print('ROI average prediction:', self.get_ROI_prediction(self.roi_dict, self.prediction_layer.data))
@@ -499,18 +499,20 @@ class calcium(QWidget):
         active /= len(spk_times)
         return active
 
-    def get_global_sync(self, roi_dff, spk_times):
-        eigenvalues = self.get_eigenvalues(roi_dff, spk_times)
+    def get_mean_connect(self, roi_dff, spk_times):
+        A = self.get_connect_matrix(roi_dff, spk_times)
 
-        if len(eigenvalues) > 0:
-            normalized_values = np.square(eigenvalues) / np.sum(np.square(eigenvalues))
-            global_sync = np.max(normalized_values)
+        if A is not None:
+            if len(A) > 1:
+                mean_connect = np.mean(np.sum(A, axis=0) - 1) / (len(A) - 1)
+            else:
+                mean_connect = 'N/A - Only one active ROI'
         else:
-            global_sync = 'No calcium events detected'
+            mean_connect = 'No calcium events detected'
 
-        return global_sync
+        return mean_connect
 
-    def get_eigenvalues(self, roi_dff, spk_times):
+    def get_connect_matrix(self, roi_dff, spk_times):
         active_roi = [r for r in spk_times if len(spk_times[r]) > 0]
 
         if len(active_roi) > 0:
@@ -521,22 +523,20 @@ class calcium(QWidget):
                 print(r)
                 print(phases[r])
 
-            S = np.zeros((len(active_roi), len(active_roi)))
+            connect_matrix = np.zeros((len(active_roi), len(active_roi)))
             for i, r1 in enumerate(active_roi):
                 for j, r2 in enumerate(active_roi):
-                    S[i, j] = self.get_sync_index(phases[r1], phases[r2])
+                    connect_matrix[i, j] = self.get_sync_index(phases[r1], phases[r2])
 
-            eigenvalues = np.linalg.eigh(S)[0]
-            # self.s = S
+            # self.A = connect_matrix
 
             np.set_printoptions(linewidth=10000, edgeitems=6)
-            print('S:')
-            print(S)
-            print('eigen:', list(eigenvalues))
+            print('A:')
+            print(connect_matrix)
         else:
-            eigenvalues = []
+            connect_matrix = None
 
-        return eigenvalues
+        return connect_matrix
 
     def get_sync_index(self, x_phase, y_phase):
         phase_diff = self.get_phase_diff(x_phase, y_phase)
@@ -660,7 +660,6 @@ class calcium(QWidget):
         else:
             self.general_msg('No ROI', 'Cannot save data')
 
-
     def generate_summary(self, save_path):
         total_amplitude = []
         total_time_to_rise = []
@@ -711,7 +710,7 @@ class calcium(QWidget):
             sum_file.write(f'Average Interevent Interval (IEI): {avg_IEI}\n')
             if len(total_IEI) > 0:
                 sum_file.write(f'\tIEI Standard Deviation: {std_IEI}\n')
-            sum_file.write(f'Global Synchronization Index: {self.global_sync}')
+            sum_file.write(f'Mean Global Connectivity: {self.mean_connect}')
 
     # Copied from Calcium_Analysis_Widget.py
     def general_msg(self, message_1: str, message_2: str):
@@ -745,10 +744,10 @@ class calcium(QWidget):
         self.max_cor_templates = None
         self.roi_analysis = None
         self.framerate = None
-        self.global_sync = None
+        self.mean_connect = None
         self.img_path = None
         self.colors = []
-        # self.s = None
+        # self.A = None
 
         self.axes.cla()
         self.canvas_traces.draw_idle()
