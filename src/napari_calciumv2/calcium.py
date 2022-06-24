@@ -512,9 +512,9 @@ class calcium(QWidget):
                 for j, r2 in enumerate(active_roi):
                     connect_matrix[i, j] = self.get_sync_index(phases[r1], phases[r2])
             # self.A = connect_matrix
-            np.set_printoptions(linewidth=10000, edgeitems=6)
-            print('A:')
-            print(connect_matrix)
+            # np.set_printoptions(linewidth=10000, edgeitems=6)
+            # print('A:')
+            # print(connect_matrix)
         else:
             connect_matrix = None
 
