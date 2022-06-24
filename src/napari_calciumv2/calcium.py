@@ -500,12 +500,12 @@ class calcium(QWidget):
         active_roi = [r for r in spk_times if len(spk_times[r]) > 0]
 
         if len(active_roi) > 0:
-            print('phases:')
+            # print('phases:')
             phases = {}
             for r in active_roi:
                 phases[r] = self.get_phase(len(roi_dff[r]), spk_times[r])
-                print(r)
-                print(phases[r])
+                # print(r)
+                # print(phases[r])
 
             connect_matrix = np.zeros((len(active_roi), len(active_roi)))
             for i, r1 in enumerate(active_roi):
