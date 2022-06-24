@@ -57,6 +57,7 @@ class calcium(QWidget):
         self.img_name = None
         self.labels = None
         self.label_layer = None
+        self.model_unet = None
         self.prediction_layer = None
         self.roi_dict = None
         self.roi_signal = None
@@ -712,6 +713,7 @@ class calcium(QWidget):
         self.img_name = None
         self.labels = None
         self.label_layer = None
+        self.model_unet = None
         self.prediction_layer = None
         self.roi_dict = None
         self.roi_signal = None
