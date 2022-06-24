@@ -68,7 +68,7 @@ class calcium(QWidget):
         self.max_cor_templates = None
         self.roi_analysis = None
         self.framerate = None
-        self.mean_connect = None
+        self.median_connect = None
         self.img_path = None
         self.colors = []
         # self.A = None
@@ -94,7 +94,7 @@ class calcium(QWidget):
             spike_templates_file = 'spikes.json'
             self.spike_times = self.find_peaks(self.roi_dff, spike_templates_file, 0.85, 0.80)
             self.roi_analysis, self.framerate = self.analyze_ROI(self.roi_dff, self.spike_times)
-            self.mean_connect = self.get_mean_connect(self.roi_dff, self.spike_times)
+            self.median_connect = self.get_median_connect(self.roi_dff, self.spike_times)
 
             self.plot_values(self.roi_dff, self.labels, self.label_layer, self.spike_times)
             # print('ROI average prediction:', self.get_ROI_prediction(self.roi_dict, self.prediction_layer.data))
@@ -482,18 +482,18 @@ class calcium(QWidget):
         active /= len(spk_times)
         return active
 
-    def get_mean_connect(self, roi_dff, spk_times):
+    def get_median_connect(self, roi_dff, spk_times):
         A = self.get_connect_matrix(roi_dff, spk_times)
 
         if A is not None:
             if len(A) > 1:
-                mean_connect = np.mean(np.sum(A, axis=0) - 1) / (len(A) - 1)
+                median_connect = np.median(np.sum(A, axis=0) - 1) / (len(A) - 1)
             else:
-                mean_connect = 'N/A - Only one active ROI'
+                median_connect = 'N/A - Only one active ROI'
         else:
-            mean_connect = 'No calcium events detected'
+            median_connect = 'No calcium events detected'
 
-        return mean_connect
+        return median_connect
 
     def get_connect_matrix(self, roi_dff, spk_times):
         active_roi = [r for r in spk_times if len(spk_times[r]) > 0]
@@ -667,7 +667,7 @@ class calcium(QWidget):
                 avg_IEI = f'{avg_IEI} {units}'
                 std_IEI = np.std(np.array(total_IEI))
             else:
-                avg_IEI = 'Only one event per ROI'
+                avg_IEI = 'N/A - Only one event per ROI'
         else:
             avg_amplitude = 'No calcium events detected'
             avg_max_slope = 'No calcium events detected'
@@ -689,7 +689,7 @@ class calcium(QWidget):
             sum_file.write(f'Average Interevent Interval (IEI): {avg_IEI}\n')
             if len(total_IEI) > 0:
                 sum_file.write(f'\tIEI Standard Deviation: {std_IEI}\n')
-            sum_file.write(f'Mean Global Connectivity: {self.mean_connect}')
+            sum_file.write(f'Median Global Connectivity: {self.median_connect}')
 
     # Taken from napari-calcium plugin by Federico Gasparoli
     def general_msg(self, message_1: str, message_2: str):
@@ -723,7 +723,7 @@ class calcium(QWidget):
         self.max_cor_templates = None
         self.roi_analysis = None
         self.framerate = None
-        self.mean_connect = None
+        self.median_connect = None
         self.img_path = None
         self.colors = []
         # self.A = None
