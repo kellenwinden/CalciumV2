@@ -480,7 +480,7 @@ class calcium(QWidget):
         for r in spk_times:
             if len(spk_times[r]) > 0:
                 active += 1
-        active /= len(spk_times)
+        active = (active / len(spk_times)) * 100
         return active
 
     def get_mean_connect(self, roi_dff, spk_times):
@@ -656,13 +656,16 @@ class calcium(QWidget):
 
         if any(self.spike_times.values()):
             avg_amplitude = np.mean(np.array(total_amplitude))
+            std_amplitude = np.std(np.array(total_amplitude))
             avg_max_slope = np.mean(np.array(total_max_slope))
+            std_max_slope = np.std(np.array(total_max_slope))
             if self.framerate:
                 units = 'seconds'
             else:
                 units = 'frames'
             avg_time_to_rise = np.mean(np.array(total_time_to_rise))
             avg_time_to_rise = f'{avg_time_to_rise} {units}'
+            std_time_to_rise = np.std(np.array(total_time_to_rise))
             if len(total_IEI) > 0:
                 avg_IEI = np.mean(np.array(total_IEI))
                 avg_IEI = f'{avg_IEI} {units}'
@@ -683,14 +686,20 @@ class calcium(QWidget):
             else:
                 sum_file.write('No framerate detected\n')
             sum_file.write(f'Total ROI: {len(self.roi_dict)}\n')
-            sum_file.write(f'Percent Active ROI: {percent_active}\n')
+            sum_file.write(f'Percent Active ROI: {percent_active}%\n')
             sum_file.write(f'Average Amplitude: {avg_amplitude}\n')
+            if len(total_amplitude) > 0:
+                sum_file.write(f'\tAmplitude Standard Deviation: {std_amplitude}\n')
             sum_file.write(f'Average Max Slope: {avg_max_slope}\n')
+            if len(total_max_slope) > 0:
+                sum_file.write(f'\tMax Slope Standard Deviation: {std_max_slope}\n')
             sum_file.write(f'Average Time to Rise: {avg_time_to_rise}\n')
+            if len(total_time_to_rise) > 0:
+                sum_file.write(f'\tTime to Rise Standard Deviation: {std_time_to_rise}\n')
             sum_file.write(f'Average Interevent Interval (IEI): {avg_IEI}\n')
             if len(total_IEI) > 0:
                 sum_file.write(f'\tIEI Standard Deviation: {std_IEI}\n')
-            sum_file.write(f'Mean Global Connectivity: {self.mean_connect}')
+            sum_file.write(f'Global Connectivity: {self.mean_connect}')
 
     # Taken from napari-calcium plugin by Federico Gasparoli
     def general_msg(self, message_1: str, message_2: str):
