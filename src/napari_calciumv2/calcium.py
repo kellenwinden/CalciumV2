@@ -45,6 +45,9 @@ class calcium(QWidget):
         self.axes = self.canvas_traces.figure.subplots()
         self.layout().addWidget(self.canvas_traces)
 
+        self.canvas_just_traces = FigureCanvas(Figure(constrained_layout=False))
+        self.axes_just_traces = self.canvas_just_traces.figure.subplots()
+
         self.save_btn = QPushButton("Save")
         self.save_btn.clicked.connect(self.save_files)
         self.layout().addWidget(self.save_btn)
@@ -234,6 +237,7 @@ class calcium(QWidget):
         if len(roi_to_plot) > 0:
             print('Active ROI:', roi_to_plot)
             self.axes.set_prop_cycle(color=colors_to_plot)
+            self.axes_just_traces.set_prop_cycle(color=colors_to_plot)
 
             dff_max = np.zeros(len(roi_to_plot))
             for dff_index, dff_key in enumerate(roi_to_plot):
@@ -241,11 +245,13 @@ class calcium(QWidget):
             height_increment = max(dff_max)
 
             for height_index, d in enumerate(roi_to_plot):
+                self.axes_just_traces.plot(dff[d] + height_index * (1.2 * height_increment))
                 self.axes.plot(dff[d] + height_index * (1.2 * height_increment))
                 if len(spike_times[d]) > 0:
                     self.axes.plot(spike_times[d], dff[d][spike_times[d]] + height_index * (1.2 * height_increment),
                                    ms=2, color='k', marker='o', ls='')
                 self.canvas_traces.draw_idle()
+                self.canvas_just_traces.draw_idle()
         else:
             self.general_msg('No activity', 'No calcium events were detected for any ROI')
 
@@ -613,6 +619,7 @@ class calcium(QWidget):
                     writer.writerow(max_cor_temps[i, :])
 
             self.canvas_traces.print_png(save_path + '/traces.png')
+            self.canvas_just_traces.print_png(save_path + '/traces_no_detections.png')
 
             label_array = np.stack((self.label_layer.data,) * 4, axis=-1).astype(float)
             for i in range(1, np.max(self.labels) + 1):
