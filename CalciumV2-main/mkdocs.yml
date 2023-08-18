@@ -1,0 +1,9 @@
+site_name: napari-calciumv2
+site_description: blah
+site_author: Kellen Winden
+
+theme: readthedocs
+
+
+pages:
+- Home: index.md
